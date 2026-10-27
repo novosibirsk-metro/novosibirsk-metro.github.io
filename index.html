@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Метро Новосибирска 2055 — 2D</title>
+<meta name="description" content="Неофициальная интерактивная схема Новосибирского метро: пути, стрелки, съезды и тупики на спутниковом снимке, перспектива линий и станций до 2055 года.">
+<meta name="theme-color" content="#0b0f13">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:site_name" content="Метро Новосибирска 2055">
+<meta property="og:title" content="Метро Новосибирска 2055 — схема путевого развития">
+<meta property="og:description" content="Пути, стрелки, съезды и тупики на спутниковом снимке, перспектива линий и станций до 2055 года. Неофициальная схема по открытым данным.">
+<meta property="og:url" content="https://novosibirsk-metro.github.io/">
+<meta property="og:image" content="https://novosibirsk-metro.github.io/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Схема линий Новосибирского метро с перспективой до 2055 года">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tektur:wght@500;700&family=Golos+Text:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
 <style>
 /* одна полноэкранная карта; панель слева, карточка справа */
@@ -23,6 +38,8 @@ a{color:var(--accent)}
 h1{font-family:var(--f-disp);font-size:24px;line-height:1.05;margin:4px 0 6px}
 h1 b{color:var(--accent);font-weight:700}
 .lead{margin:0;color:var(--muted);font-size:12.5px;line-height:1.4}
+.unoff{margin:6px 0 0;font-size:11.5px;line-height:1.35;color:#c9b27a;border-left:2px solid #6b5a2c;padding-left:8px}
+.cardnote{margin:0;font-size:11.5px;color:var(--muted);border-top:1px solid var(--rule);padding-top:8px}
 .scroll{overflow:auto;flex:1}
 .blk{padding:12px 16px;border-bottom:1px solid var(--rule);display:grid;gap:8px}
 h2{font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
@@ -65,12 +82,19 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 #hud{position:absolute;left:324px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap;font-family:var(--f-mono);font-size:11px;color:var(--muted);pointer-events:none}
 #hud span{background:var(--panel);border:1px solid var(--rule);padding:5px 9px;border-radius:6px}
 #panelToggle{display:none}
+#hud i{font-style:normal}#hud .s{display:none}
 @media (max-width:760px){
   #panel{width:auto;right:12px;bottom:auto;max-height:70%}
+  #panel header{padding:10px 12px;display:grid;grid-template-columns:1fr auto;align-items:center;column-gap:10px}
+  #panel header .eyebrow,#panel header .lead{display:none}
+  #panel h1{font-size:19px;margin:0;grid-column:1}
+  #panel header .row{grid-column:2;grid-row:1;margin:0!important}
+  .unoff{grid-column:1/-1;font-size:10.5px;margin-top:6px}
+  #hud .l{display:none}#hud .s{display:inline}
   #panel.closed .scroll{display:none}
   #panelToggle{display:inline-block}
   #hud{left:12px;right:60px}
-  #card{top:auto;bottom:12px;max-height:55%}
+  #card{top:auto;bottom:12px;max-height:55%;z-index:6;background:var(--panel-solid)}
 }
 </style>
 </head>
@@ -81,6 +105,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
     <div class="eyebrow">Путевое развитие · 2D</div>
     <h1>Метро Новосибирска <b>2055</b></h1>
     <p class="lead">Оба главных пути, съезды, тупики и стрелки по OpenStreetMap. Пунктир — проектируемые участки: нажмите, чтобы открыть статус.</p>
+    <p class="unoff">Неофициальная любительская схема по открытым данным на октябрь 2026 г. Не связана с ГУП «Новосибирский метрополитен».</p>
     <div class="row" style="margin-top:8px"><button class="btn" id="panelToggle" type="button">Панель</button></div>
   </header>
   <div class="scroll">
@@ -127,7 +152,7 @@ input[type=range]{width:100%;accent-color:var(--accent)}
 </aside>
 <div id="card" hidden><button class="x" type="button" id="cardX" aria-label="Закрыть">×</button><div id="cardBody"></div></div>
 <div id="zoom"><button class="btn" id="zIn" type="button" aria-label="Приблизить">+</button><button class="btn" id="zOut" type="button" aria-label="Отдалить">−</button></div>
-<div id="hud"><span id="hudScale"></span><span id="hudSrc">Снимки: Esri World Imagery, Maxar, Earthstar Geographics · пути: © участники OpenStreetMap</span></div>
+<div id="hud"><span id="hudScale"></span><span id="hudSrc"><i class="l">Снимки: Esri World Imagery, Maxar, Earthstar Geographics · пути: © участники OpenStreetMap</i><i class="s">© Esri, Maxar · © OpenStreetMap</i></span></div>
 
 <script src="nsk-osm.js" charset="utf-8"></script>
 <script>
@@ -336,8 +361,12 @@ function resize(){dpr=Math.min(window.devicePixelRatio||1,2);Wd=cv.clientWidth;H
 
 function path(p){g.beginPath();for(var i=0;i<p.length;i++){var X=sx(p[i].x),Z=sz(p[i].z);i?g.lineTo(X,Z):g.moveTo(X,Z);}}
 function stroke(p,col,w,dash){path(p);g.strokeStyle=col;g.lineWidth=w;g.setLineDash(dash||[]);g.stroke();g.setLineDash([]);}
+var LBL=[];
 function label(t,x,z,o){o=o||{};g.font=(o.w||600)+' '+(o.size||12)+'px '+(o.mono?'"JetBrains Mono",Consolas,monospace':'"Golos Text","Segoe UI",Arial,sans-serif');
   var X=sx(x)+(o.dx||0),Z=sz(z)+(o.dz||0),tw=g.measureText(t).width;g.textBaseline='middle';g.textAlign='left';
+  // подписи станций не накладываются: перекрывающая пропускается и появится при приближении
+  if(o.avoid){var h=(o.size||12)+8,r={a:X-4,b:Z-h/2,c:X+tw+4,d:Z+h/2};
+    for(var i=0;i<LBL.length;i++){var q=LBL[i];if(r.a<q.c&&r.c>q.a&&r.b<q.d&&r.d>q.b)return;}LBL.push(r);}
   if(o.box!==false){g.fillStyle='rgba(11,15,19,.82)';g.fillRect(X-4,Z-(o.size||12)/2-4,tw+8,(o.size||12)+8);if(o.edge){g.fillStyle=o.edge;g.fillRect(X-4,Z-(o.size||12)/2-4,3,(o.size||12)+8);}}
   g.fillStyle=o.col||'#e6ebef';g.fillText(t,X+(o.edge?2:0),Z);}
 var lineCol=function(k){return LINES[k]?LINES[k].css:'#9aa4ae';};
@@ -419,11 +448,11 @@ function drawStations(){
   if(on.future)FST.forEach(function(f){if(f.plan>Y)return;var X=sx(f.x),Z=sz(f.z);g.beginPath();g.arc(X,Z,R,0,7);g.fillStyle='#ffffff';g.fill();g.lineWidth=R*0.55;g.strokeStyle=lineCol(f.line);g.stroke();});
 }
 function drawLabels(){
-  if(!on.labels)return;var big=view.s>0.4;
-  if(on.stations)STN.forEach(function(s){label(s.n,s.x,s.z,{dx:12,size:big?12:10,edge:lineCol(s.line)});});
-  if(on.future&&on.stations)FST.forEach(function(f){if(f.plan>Y)return;label(f.n,f.x,f.z,{dx:12,size:big?12:10,edge:lineCol(f.line)});});
+  if(!on.labels)return;var big=view.s>(Wd<500?0.9:0.4);LBL=[];
+  if(on.stations)STN.forEach(function(s){label(s.n,s.x,s.z,{dx:12,size:big?12:10,edge:lineCol(s.line),avoid:true});});
+  if(on.future&&on.stations)FST.forEach(function(f){if(f.plan>Y)return;label(f.n,f.x,f.z,{dx:12,size:big?12:10,edge:lineCol(f.line),avoid:true});});
   if(on.future&&on.service&&view.s>3.5)FEL.forEach(function(e){if(e.k!=='tag'||e.year>Y)return;label(e.t,e.q.x,e.q.z,{dx:-30,dz:-14,size:10,w:500,col:e.as?'#8f9aa4':'#cfd6dc'});});
-  if(on.depots){label('Электродепо ТЧ-1 «Ельцовское»',DEP1.x,DEP1.z,{dz:-16,size:11,col:'#cfd6dc'});
+  if(on.depots&&view.s>1){label('Электродепо ТЧ-1 «Ельцовское»',DEP1.x,DEP1.z,{dz:-16,size:11,col:'#cfd6dc'});
     if(on.future&&Y>=2032)label('Депо ТЧ-2 «Волочаевское» · ≈2032',VOL.center.x,VOL.center.z,{dx:-90,size:11,col:'#7ee0a0'});}
   if(view.s>1.6){var o=WAYS.filter(function(w){return w.o;})[0],u=WAYS.filter(function(w){return w.u;})[0];
     if(o){var a=o.p[o.p.length>>1];label('Один действующий северный тоннель — 482 м',a.x,a.z,{dz:-18,size:11,col:'#d99a6c'});}
@@ -440,7 +469,7 @@ function render(){
 /* ---------------- карточки ---------------- */
 var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
 var chip=function(k){return k&&LINES[k]?'<span class="chip" style="background:'+LINES[k].css+'">'+LINES[k].num+'</span>':'';};
-function show(html){$('#cardBody').innerHTML=html;$('#card').hidden=false;}
+function show(html){$('#cardBody').innerHTML=html+'<p class="cardnote">Неофициальная схема по открытым данным на '+TODAY+'. Не является информацией метрополитена.</p>';$('#card').hidden=false;}
 function openStation(s){var m=s.m,L=LINES[s.line];
   show('<div class="eyebrow">'+chip(s.line)+' '+(L?L.name+' линия':'')+'</div><h3>'+esc(s.n)+'</h3><dl class="kv">'+
     (m.open?'<dt>Открыта</dt><dd>'+esc(m.open)+'</dd>':'')+(m.pk?'<dt>Пикет</dt><dd>'+esc(m.pk)+'</dd>':'')+
