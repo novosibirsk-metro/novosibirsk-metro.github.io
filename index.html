@@ -253,13 +253,13 @@ var WAYS=D.W.map(function(w){
 var STN=D.ST.map(function(s){var m=META[s[0]]||{};return {n:m.n||s[0],key:s[0],x:s[1],z:s[2],m:m,line:m.line};});
 var SBYID={};STN.forEach(function(s){if(s.m.id)SBYID[s.m.id]=s;});
 var near=function(arr,f){var b=null,bd=1e18;arr.forEach(function(q,i){var d=f(q);if(d<bd){bd=d;b=i;}});return b;};
-// депо «Волочаевское»: западный край вдоль ул. Комбинатской, ≈355×570 м, горловина у шоссе
-var VOL=(function(){var O={x:688.93,z:-222.08},Dv={x:0.1609,z:0.9870},n={x:Dv.z,z:-Dv.x},L=57,W=35.6;
+// депо «Волочаевское»: западный край вдоль ул. Комбинатской, ≈210×330 м, горловина у шоссе (по разметке пользователя)
+var VOL=(function(){var O={x:681.70,z:-222.73},Dv={x:0.1403,z:0.9901},n={x:Dv.z,z:-Dv.x},L=33.3,W=20.7;
   var c=function(a,b){return {x:O.x+Dv.x*a+n.x*b,z:O.z+Dv.z*a+n.z*b};};
   var tracks=[];for(var k=0;k<12;k++){var off=-W*0.3+k*(W*0.5/11);tracks.push([c(0,0),c(L*0.06,off*0.15),c(L*0.2,off),c(L*0.92,off)]);}
   return {poly:[c(0,-W/2),c(0,W/2),c(L,W/2),c(L,-W/2)],tracks:tracks,center:c(L/2,0),
     shed:[c(L*0.37,-W*0.33),c(L*0.79,-W*0.33),c(L*0.79,W*0.09),c(L*0.37,W*0.09)],
-    conn:[{x:646.2,z:-214.9},{x:664,z:-219.5},{x:679,z:-224},{x:686,z:-224.8},O]};})();
+    conn:[{x:646.2,z:-214.9},{x:662,z:-219.2},{x:674,z:-223.4},{x:680.5,z:-225.4},O]};})();
 
 /* ---------------- перспективные линии: пути, съезды, тупики ---------------- */
 // Каждая линия — ось трассы; по ней строятся два главных пути (±TR), станции с платформами,
