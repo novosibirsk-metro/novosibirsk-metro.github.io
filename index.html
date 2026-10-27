@@ -255,12 +255,18 @@ var SBYID={};STN.forEach(function(s){if(s.m.id)SBYID[s.m.id]=s;});
 var near=function(arr,f){var b=null,bd=1e18;arr.forEach(function(q,i){var d=f(q);if(d<bd){bd=d;b=i;}});return b;};
 // депо «Волочаевское»: западный край вдоль ул. Коминтерна, северный у шоссе, ≈210×600 м к югу;
 // горловина в северо-западном углу, ближнем к «Молодёжной» (план-схема продления Дзержинской линии)
-var VOL=(function(){var O={x:681.70,z:-222.73},Dv={x:0.1403,z:0.9901},n={x:Dv.z,z:-Dv.x},L=60,W=20.7,b0=-W*0.35;
+// Компоновка по плану-схеме (он повёрнут на 180°): веер путей от горловины, в дальней (южной) половине —
+// длинный корпус с параллельными путями, вдоль восточной стороны — служебные здания. a — вдоль депо от шоссе, b — поперёк (b<0 — запад).
+var VOL=(function(){var O={x:681.70,z:-222.73},Dv={x:0.1403,z:0.9901},n={x:Dv.z,z:-Dv.x},L=60,W=20.7,b0=-W/2+1.6;
   var c=function(a,b){return {x:O.x+Dv.x*a+n.x*b,z:O.z+Dv.z*a+n.z*b};};
-  var T=c(0,b0),tracks=[];// веер парковых путей расходится от горловины
-  for(var k=0;k<12;k++){var off=-W*0.32+k*(W*0.62/11);tracks.push([T,c(L*0.05,b0+(off-b0)*0.25),c(L*0.16,off),c(L*0.94,off)]);}
-  return {poly:[c(0,-W/2),c(0,W/2),c(L,W/2),c(L,-W/2)],tracks:tracks,center:c(L/2,0),
-    shed:[c(L*0.42,-W*0.3),c(L*0.82,-W*0.3),c(L*0.82,W*0.2),c(L*0.42,W*0.2)],
+  var R=function(a0,a1,b1,b2){return [c(a0,b1),c(a1,b1),c(a1,b2),c(a0,b2)];};
+  var T=c(1.2,b0),N=10,bL=-W/2+2.4,bR=W/2-6.2,tracks=[];
+  for(var k=0;k<N;k++){var off=bL+k*(bR-bL)/(N-1),aS=L*0.08+k*L*0.022;// стрелки веера одна за другой
+    tracks.push([T,c(aS,b0+(off-b0)*0.15),c(aS+L*0.1,off),c(L*0.96,off)]);}
+  return {poly:R(0,L,-W/2,W/2),tracks:tracks,center:c(L/2,0),
+    sheds:[R(L*0.5,L*0.94,bL-1,bR+1)],// отстойно-ремонтный корпус: пути идут сквозь него
+    blds:[R(L*0.34,L*0.42,bL-0.8,bR+0.8),// мойка / ПТО поперёк путей
+      R(L*0.04,L*0.16,W/2-4.6,W/2-1.2),R(L*0.22,L*0.36,W/2-4.2,W/2-1.2),R(L*0.5,L*0.66,W/2-4.2,W/2-1.2),R(L*0.72,L*0.9,W/2-4.2,W/2-1.2)],
     conn:[{x:646.2,z:-214.9},{x:658,z:-218.3},{x:667,z:-220.9},T]};})();
 
 /* ---------------- перспективные линии: пути, съезды, тупики ---------------- */
@@ -459,9 +465,12 @@ function drawFuture(){
     path(d.rect);g.closePath();g.fillStyle='rgba(154,164,174,.16)';g.fill();g.strokeStyle=c;g.lineWidth=1.6;g.setLineDash([6,4]);g.stroke();g.setLineDash([]);
     if(view.s>0.8&&on.labels)label(d.n,e.x,e.z,{dx:-60,dz:-(7*view.s+14),size:10,w:500,col:'#cfd6dc'});});
   if(Y>=2032&&on.depots){
-    path(VOL.poly);g.closePath();g.fillStyle='rgba(34,166,83,.16)';g.fill();g.strokeStyle='#22a653';g.lineWidth=2;g.setLineDash([7,5]);g.stroke();g.setLineDash([]);
-    path(VOL.shed);g.closePath();g.fillStyle='rgba(34,166,83,.22)';g.fill();g.strokeStyle='rgba(34,166,83,.9)';g.lineWidth=1.2;g.stroke();
-    if(view.s>1.5)VOL.tracks.forEach(function(t){stroke(t,'rgba(120,220,150,.75)',1,[4,3]);});
+    // как на плане-схеме: голубая площадка с контуром, корпуса, веер путей
+    var poly=function(p,fill,line,w){path(p);g.closePath();g.fillStyle=fill;g.fill();g.strokeStyle=line;g.lineWidth=w;g.stroke();};
+    poly(VOL.poly,'rgba(150,185,230,.38)','#e3ecf7',2);
+    if(view.s>1.2){VOL.sheds.forEach(function(p){poly(p,'rgba(110,145,205,.42)','#f2f6fb',1.4);});
+      VOL.blds.forEach(function(p){poly(p,'rgba(235,240,248,.55)','#f2f6fb',1.2);});
+      VOL.tracks.forEach(function(t){stroke(t,'#3f73c9',Math.max(1,view.s*0.18));});}
   }
 }
 function drawNodes(){
