@@ -329,7 +329,10 @@ var LAYERS={tracks:['Пути',true],service:['Съезды, тупики',true]
 var on={};Object.keys(LAYERS).forEach(function(k){on[k]=LAYERS[k][1];});
 var sx=function(x){return (x-view.x)*view.s+Wd/2;},sz=function(z){return (z-view.z)*view.s+Hd/2;};
 var wx=function(px){return (px-Wd/2)/view.s+view.x;},wz=function(py){return (py-Hd/2)/view.s+view.z;};
-function resize(){dpr=Math.min(window.devicePixelRatio||1,2);Wd=cv.clientWidth;Hd=cv.clientHeight;cv.width=Math.round(Wd*dpr);cv.height=Math.round(Hd*dpr);draw();}
+function resize(){dpr=Math.min(window.devicePixelRatio||1,2);Wd=cv.clientWidth;Hd=cv.clientHeight;cv.width=Math.round(Wd*dpr);cv.height=Math.round(Hd*dpr);
+  // вкладка, открытая в фоне, стартует с нулевым размером окна — тогда стартовый вид задаётся при первом настоящем размере
+  if(Wd>0&&Hd>0&&!(view.s>=0.1)){view.x=180;view.z=-20;view.s=Math.min(Wd,Hd)/1400;view.x-=panelOff()/view.s;}
+  draw();}
 
 function path(p){g.beginPath();for(var i=0;i<p.length;i++){var X=sx(p[i].x),Z=sz(p[i].z);i?g.lineTo(X,Z):g.moveTo(X,Z);}}
 function stroke(p,col,w,dash){path(p);g.strokeStyle=col;g.lineWidth=w;g.setLineDash(dash||[]);g.stroke();g.setLineDash([]);}
@@ -522,8 +525,9 @@ function renderList(){var box=$('#stList');box.innerHTML='<h2>Станции</h2
     box.appendChild(ul);});}
 renderList();
 if(window.innerWidth<=760)$('#panel').classList.add('closed');
-window.addEventListener('resize',resize);resize();
-view.s=Math.min(Wd,Hd)/1400;view.x-=panelOff()/view.s;render();
+view.s=0;window.addEventListener('resize',resize);resize();
+document.addEventListener('visibilitychange',function(){if(!document.hidden)resize();});
+render();
 })();
 </script>
 </body>
