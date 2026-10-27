@@ -241,6 +241,9 @@ FUT.l3={title:'Правобережная (третья) линия',line:'L3',y
   facts:['От «Стрижей» через Калининский и Дзержинский районы до улицы Выборной и Ключ-Камышенского плато.','Станции по схеме: «Петрозаводская», «Родники», «Снегири», «Юбилейная», «Учительская», «Восточная», «Чкаловская», «Берёзовая роща» (пересадка на Дзержинскую), «Каменская», «Октябрьская» (пересадка на Ленинскую), «Никитинская», «Дунайская», «Плющихинская», «Выборная», «Камышенская», «Карьерная».','Электродепо — на Ключ-Камышенском плато, ветка от «Выборной».',GPNOTE],src:['gp55','ngs55']};
 FUT.molod.facts=['По схеме до 2055 г. Дзержинскую линию до «Молодёжной» предлагают построить полностью под землёй; раньше часть пути вдоль Гусинобродского шоссе планировали на эстакаде.','Далее — электродепо «Волочаевское» южнее станции.'];
 FUT.molod.src=['gp55','tm','tender','n79'];
+// положение депо на карте примерное: перерисовано со схематичного плана, точных границ участка в открытых данных нет
+var DEPNOTE='Положение и границы депо на карте примерные: площадка перерисована со схематичного плана-схемы и спутникового снимка. Точных границ земельного участка и решений об изъятии или сносе конкретных домов в открытых данных нет — по этой карте нельзя судить, какие дома попадут под застройку.';
+FUT.voloch.facts.unshift(DEPNOTE);
 
 /* ---------------- подготовка данных ---------------- */
 var LKEY={1:'L1',2:'L2'};
@@ -501,7 +504,8 @@ function drawLabels(){
   if(on.future&&on.stations)FST.forEach(function(f){if(f.plan>Y)return;label(f.n,f.x,f.z,{dx:12,size:big?12:10,edge:lineCol(f.line),avoid:true});});
   if(on.future&&on.service&&view.s>3.5)FEL.forEach(function(e){if(e.k!=='tag'||e.year>Y)return;label(e.t,e.q.x,e.q.z,{dx:-30,dz:-14,size:10,w:500,col:e.as?'#8f9aa4':'#cfd6dc'});});
   if(on.depots&&view.s>1){label('Электродепо ТЧ-1 «Ельцовское»',DEP1.x,DEP1.z,{dz:-16,size:11,col:'#cfd6dc'});
-    if(on.future&&Y>=2032)label('Депо ТЧ-2 «Волочаевское» · ≈2032',VOL.center.x,VOL.center.z,{dx:-90,size:11,col:'#7ee0a0'});}
+    if(on.future&&Y>=2032){label('Депо ТЧ-2 «Волочаевское» · ≈2032',VOL.center.x,VOL.center.z,{dx:-90,size:11,col:'#7ee0a0'});
+      label('Положение и границы примерные',VOL.center.x,VOL.center.z,{dx:-90,dz:18,size:10,w:500,col:'#e8d39a'});}}
   if(view.s>1.6){var o=WAYS.filter(function(w){return w.o;})[0],u=WAYS.filter(function(w){return w.u;})[0];
     if(o){var a=o.p[o.p.length>>1];label('Один действующий северный тоннель — 482 м',a.x,a.z,{dz:-18,size:11,col:'#d99a6c'});}
     if(u&&on.future){var b=u.p[u.p.length>>1];label('Южный тоннель II пути не достроен (≈520 м)',b.x,b.z,{dz:18,size:11,col:'#cfd6dc'});}}
@@ -546,7 +550,7 @@ function pick(px,py){var x=wx(px),z=wz(py),tol=10/view.s,best=null,bd=tol;
   if(best)return best();
   if(on.future&&on.depots&&Y>=2032&&inPoly(x,z,VOL.poly))return openFuture('voloch');
   if(on.future&&on.depots)for(var di=0;di<FDEP.length;di++){var d=FDEP[di];if(d.rect&&inPoly(x,z,d.rect))
-    return show('<div class="eyebrow">'+chip(d.line)+' Перспектива · схема до 2055 г.</div><h3>'+esc(d.n)+'</h3><p class="desc">Место отмечено на схеме развития метро в проекте изменений Генплана (10.2026). Размер площадки на карте условный.</p><p class="desc"><a href="#" id="dpL">Линия: '+esc(FUT[d.fut].title)+'</a></p>'),$('#dpL').onclick=function(ev){ev.preventDefault();openFuture(d.fut);};}
+    return show('<div class="eyebrow">'+chip(d.line)+' Перспектива · схема до 2055 г.</div><h3>'+esc(d.n)+'</h3><p class="desc">Место отмечено на схеме развития метро в проекте изменений Генплана (10.2026). Положение примерное, размер площадки на карте условный: по ней нельзя судить, какие участки и дома попадут под застройку.</p><p class="desc"><a href="#" id="dpL">Линия: '+esc(FUT[d.fut].title)+'</a></p>'),$('#dpL').onclick=function(ev){ev.preventDefault();openFuture(d.fut);};}
   var bw=null;bd=6/view.s;
   WAYS.forEach(function(w){if(w.ty==='X')return;for(var i=1;i<w.p.length;i++){var d=segDist(x,z,w.p[i-1],w.p[i]);if(d<bd){bd=d;bw=w;}}});
   var bf=null;if(on.future)FEL.forEach(function(e){if(e.k!=='track'||e.year>Y)return;for(var i=1;i<e.p.length;i++){var d=segDist(x,z,e.p[i-1],e.p[i]);if(d<bd){bd=d;bf=e;}}});
