@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Симулятор перегона Берёзовая роща — Золотая Нива: камера съездов, однопутный участок, ручные стрелки и светофоры. Новосибирский метрополитен.">
+<link rel="icon" href="../../favicon.svg" type="image/svg+xml">
+<title>Перегон Берёзовая роща — Золотая Нива</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=PT+Sans:ital,wght@0,400;0,700;1,400&family=PT+Mono&display=swap">
+<style>
+/* Стиль путевой схемы метрополитена: белое поле, зелёная Дзержинская линия, перегон во всю ширину, пульт под ним. Одна светлая тема по замыслу. */
+:root{
+  --bg:#ffffff; --ink:#121212; --mute:#5f6368; --rule:#1a1a1a; --soft:#e4e4e4;
+  --green:#0b8a2e; --pk:#f08a24; --blue:#1f7ee6; --mag:#cc2fcc; --red:#e3241b;
+  --route:#1ea84a; --occ:#ffb000; --train:#2b5f9e; --trainHi:#9cc3ec; --door:#ffd400;
+  --sigG:#16b34a; --sigR:#e3241b; --sigY:#f2b705;
+  --f-body:"PT Sans",Tahoma,Verdana,sans-serif; --f-mono:"PT Mono",Consolas,ui-monospace,monospace;
+  color-scheme:light;
+}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--f-body);font-size:14px;line-height:1.4}
+.wrap{max-width:1500px;margin:0 auto;padding-block:14px 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px}
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;border:2px solid var(--green);padding:8px 14px}
+.title{display:flex;align-items:center;gap:12px;min-width:0}
+.badge{width:30px;height:30px;background:var(--green);color:#fff;font-weight:700;display:grid;place-items:center;font-size:18px;flex:none}
+h1{margin:0;font-weight:700;color:var(--green);font-size:clamp(19px,2.6vw,25px);line-height:1.15;text-wrap:balance}
+.sub{font-size:12.5px;color:var(--mute)}
+.clock{font-family:var(--f-mono);font-size:26px;font-variant-numeric:tabular-nums;line-height:1}
+.ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--rule)}
+.seg button{all:unset;cursor:pointer;padding:5px 10px;font-family:var(--f-mono);font-size:13px;background:#fff;color:var(--ink)}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+.seg button:disabled{cursor:not-allowed;color:#aaa;background:#f4f4f4}
+.seg button[aria-pressed="true"]:disabled{background:#888;color:#fff}
+.btn{all:unset;cursor:pointer;padding:5px 12px;border:1px solid var(--rule);font-weight:700;font-size:13px;background:#fff}
+.btn[aria-pressed="true"]{background:var(--ink);color:#fff}
+.score{border:1px solid var(--soft);padding:8px 10px;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.score .grade{font-weight:700;font-size:15px}
+.score .grade.good{color:var(--route)} .score .grade.mid{color:#a87300} .score .grade.bad{color:var(--red)}
+button:focus-visible,.btn:focus-visible,input:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.box{border:1px solid var(--rule);background:#fff;min-width:0}
+.box h2{margin:0;font-size:15px;font-weight:700;padding:7px 12px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.box h2 span{font-weight:400;font-size:12px;color:var(--mute)}
+.inner{padding:10px 12px;display:flex;flex-direction:column;gap:10px}
+.scroller{overflow-x:auto}
+canvas{display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 12px;border-top:1px solid var(--rule);font-size:12px}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{display:inline-block;width:22px;height:6px;flex:none}
+.legend b{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none}
+.grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start}
+@media (max-width:1100px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media (max-width:720px){.grid{grid-template-columns:minmax(0,1fr)}}
+.mode{display:flex;gap:8px;align-items:center;font-weight:700}
+.mode input{width:17px;height:17px;accent-color:var(--route)}
+.note{font-size:12.5px;color:var(--mute);margin:0}
+.sw{border:1px solid var(--soft);padding:7px 9px;display:flex;flex-direction:column;gap:5px}
+.sw .nm{display:flex;justify-content:space-between;gap:6px;font-weight:700;flex-wrap:wrap}
+.sw .nm small{font-weight:400;color:var(--mute);font-size:12px}
+.sw .st{font-size:12px;min-height:16px;color:var(--mute)}
+.sw .st.lock{color:var(--red)} .sw .st.mv{color:#a87300}
+.hints{display:flex;flex-direction:column;gap:5px;font-size:12.5px}
+.hint{border-left:3px solid var(--red);padding:4px 8px;background:#fff4f3}
+.hint.ok{border-left-color:var(--route);background:#f1faf3}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{display:flex;justify-content:space-between;font-size:13px;gap:8px}
+.field output{font-family:var(--f-mono)}
+input[type=range]{width:100%;accent-color:var(--green)}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;font-weight:700;padding:3px 6px 4px 0;border-bottom:1px solid var(--rule);font-size:12px}
+td{padding:4px 6px 4px 0;border-bottom:1px solid var(--soft);vertical-align:top}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.late{color:var(--red)} .ok{color:var(--route)} .old{color:#999}
+.stats{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--mute)}
+.stats b{font-family:var(--f-mono);color:var(--ink);font-weight:400}
+.log{font-family:var(--f-mono);font-size:12px;max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.log div{display:grid;grid-template-columns:64px minmax(0,1fr);gap:6px}
+.log span:first-child{color:#999}
+.log .w{color:var(--red)}
+.facts{font-size:13px;display:flex;flex-direction:column;gap:6px}
+.facts dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0}
+.facts dt{color:var(--mute)} .facts dd{margin:0}
+.facts a{color:var(--blue)}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:8px 14px;font-size:13px;max-width:calc(100% - 32px);z-index:5}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="title"><div class="badge" aria-hidden="true">2</div>
+      <div><h1>Берёзовая роща — Золотая Нива</h1><div class="sub">Дзержинская линия · перегон 1605 м · однопутный участок от камеры съездов</div></div></div>
+    <div><div class="clock" id="clock">07:00:00</div><div class="sub">модельное время</div></div>
+    <div class="ctrl">
+      <div class="seg" id="zoom" role="group" aria-label="Масштаб"><button data-z="fit">Весь перегон</button><button data-z="big">Крупно</button></div>
+      <div class="seg" id="speed" role="group" aria-label="Скорость модели"><button data-s="1">×1</button><button data-s="3">×3</button><button data-s="10">×10</button><button data-s="30">×30</button></div>
+      <button class="btn" id="follow" aria-pressed="false">Камера за поездом</button>
+      <button class="btn" id="pause">Пауза</button>
+      <button class="btn" id="restart">Новая смена</button>
+    </div>
+  </header>
+
+  <section class="box">
+    <h2>Путевое развитие <span>нажмите на съезд, чтобы перевести стрелки</span></h2>
+    <div class="scroller" id="scroller"><canvas id="cv" aria-label="Схема перегона Берёзовая роща — Золотая Нива с камерой съездов и однопутным участком"></canvas></div>
+    <div class="legend">
+      <span><i style="background:var(--green);height:3px"></i>действующий путь</span>
+      <span><i style="background:repeating-linear-gradient(90deg,#999 0 4px,transparent 4px 8px);height:3px"></i>тоннель II пути не достроен</span>
+      <span><i style="background:var(--route)"></i>маршрут задан</span>
+      <span><i style="background:var(--occ)"></i>занят поездом</span>
+      <span><b style="background:#e0a800"></b>на посадку</span>
+      <span><b style="background:var(--blue)"></b>на выход</span>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="box">
+      <h2>Съезды <span>«+» прямо · «−» по съезду</span></h2>
+      <div class="inner">
+        <label class="mode"><input type="checkbox" id="auto" checked> Автоматическая установка маршрутов</label>
+        <p class="note">Ручной перевод отключает автоматику. Обе стрелки съезда переводятся вместе за 3 с. Съезд, по которому задан маршрут, замкнут до прохода поезда.</p>
+        <div id="switches" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div class="hints" id="hints"></div>
+      </div>
+    </section>
+    <section class="box">
+      <h2>График <span id="cap">однопутка пропускает ≈ 1 поезд в 4½ мин</span></h2>
+      <div class="inner">
+        <div class="field"><label for="interval">Интервал движения <output id="intervalV">6:00</output></label><input type="range" id="interval" min="180" max="720" step="15" value="360"></div>
+        <div class="field"><label for="turn">Оборот на Золотой Ниве <output id="turnV">2:30</output></label><input type="range" id="turn" min="90" max="300" step="15" value="150"></div>
+        <div class="field"><label for="flow">Входящий поток <output id="flowV">12 чел/мин на станцию</output></label><input type="range" id="flow" min="0" max="60" step="2" value="12"></div>
+        <table><thead><tr><th>Поезд</th><th>Отпр. с Зол. Нивы</th><th>Где</th></tr></thead><tbody id="sched"></tbody></table>
+        <div class="stats"><span>Оборотов <b id="sDep">0</b></span><span>Ждут на БР <b id="sBR">0</b></span><span>Ждут на ЗН <b id="sZN">0</b></span></div>
+        <div class="score" id="score"></div>
+      </div>
+    </section>
+    <section class="box">
+      <h2>Журнал ДСП</h2>
+      <div class="inner"><div class="log" id="log"></div></div>
+    </section>
+  </div>
+
+  <section class="box">
+    <h2>Справка по участку</h2>
+    <div class="inner facts">
+      <dl>
+        <dt>Длина перегона</dt><dd>1605 м: ПК91+79.65 (Берёзовая роща) — ПК75+74.64 (Золотая Нива)</dd>
+        <dt>Участки тоннеля</dt><dd>Берёзовая роща — демонтажная камера 150 м (1997); демонтажная камера — камера съездов 442 м; правый тоннель от камеры съездов к станции 482 м; участок второго тоннеля 528 м в пусковой комплекс не вошёл</dd>
+        <dt>Камера съездов</dt><dd>Открытый способ, 2007–2009. Стоит в насыпной дамбе через речку Каменку на улице Кошурникова. Нужна потому, что за Золотой Нивой нет оборотных тупиков</dd>
+        <dt>Движение</dt><dd>По схеме путевого развития (ред. 12.2025) тоннель II пути от Каменки до Золотой Нивы не достроен. Поезда переходят в камере съездов на I путь, идут до Золотой Нивы, меняют кабину у платформы и возвращаются тем же путём</dd>
+        <dt>Берёзовая роща</dt><dd>Односводчатая мелкого заложения, выходы через оба торца (восточный 2005, западный 2013). Западнее станции съезд 1–2</dd>
+        <dt>Золотая Нива</dt><dd>Колонная двухпролётная мелкого заложения, 26 колонн с шагом 4 м. Открыта 7.10.2010, закрыта 26.10.2010, вновь открыта 9.02.2011</dd>
+      </dl>
+      <p class="note">Не нашёл в источниках точного положения стрелок внутри камеры, скоростей и интервалов на участке, поэтому они взяты типовые. Длины 482 и 528 м в источниках не складываются в 1605 м без станций и камер, поэтому камера съездов на схеме поставлена по участкам 150 + 442 м от Берёзовой рощи. Источники: <a href="https://mirmetro.net/metro/novosibirsk/stations/stanciya-zolotaya-niva" target="_blank" rel="noopener">Мир метро: Золотая Нива</a>, <a href="https://mirmetro.net/novosibirsk/lines/dzerzhinskaya/13_beryozovaya_roshcha" target="_blank" rel="noopener">Мир метро: Берёзовая роща</a>, <a href="https://novosibirsk-history.ru/projects/metro/stantsiya_zolotaya_niva/" target="_blank" rel="noopener">История Новосибирска</a>, схема путевого развития В. Прудникова (trackmap.ru).</p>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+window.addEventListener('error',e=>{const d=document.createElement('pre');d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;background:#400;color:#fff;padding:10px;z-index:99;white-space:pre-wrap;font:12px monospace';d.textContent='Ошибка: '+e.message+' (строка '+e.lineno+')';document.body.appendChild(d)});
+(()=>{
+const $=s=>document.querySelector(s);
+const cv=$('#cv'),ctx=cv.getContext('2d');
+const cs=getComputedStyle(document.documentElement);
+const C={};['ink','mute','green','pk','blue','mag','red','route','occ','train','trainHi','door','sigG','sigR','sigY'].forEach(k=>C[k]=cs.getPropertyValue('--'+k).trim()||'#000');
+
+/* ---------- геометрия: x в метрах от оси Берёзовой рощи на восток, y в пикселях ---------- */
+const Y1=150,Y2=214,LANE_M=4,H=330;
+const X0=-330,X1=1745;
+const BR0=-51,BR1=51,ZN0=1554,ZN1=1656,DEMO=201,CH0=632,CH1=702;
+const CAR=19.2,GAP=1,NCAR=4,TL=NCAR*CAR+(NCAR-1)*GAP;
+const VMAX=16.7,VSW=10,ACC=1.0,DEC=1.1;
+const N={W2:[-1100,Y2],BS2:[-150,Y2],B2w:[BR0,Y2],B2e:[BR1,Y2],CS:[620,Y2],ZS2:[645,Y2],U2:[702,Y2],
+  W1:[-1100,Y1],BS1:[-100,Y1],B1w:[BR0,Y1],B1e:[BR1,Y1],ZS1:[690,Y1],ZE:[ZN1-3,Y1],BUMP:[ZN1+30,Y1]};
+const STOP={B2w:-1,B2e:1,CS:1,B1w:-1,B1e:1,ZE:1};
+const END={W1:'exit',W2:'exit',U2:'dead',BUMP:'dead'};
+const E={II_w:['W2','BS2'],II_br:['BS2','B2w'],II_pl:['B2w','B2e'],II_run:['B2e','CS'],II_cs:['CS','ZS2'],II_nb:['ZS2','U2'],
+  I_w:['W1','BS1'],I_br:['BS1','B1w'],I_pl:['B1w','B1e'],I_run:['B1e','ZS1'],I_one:['ZS1','ZE'],I_end:['ZE','BUMP'],
+  X_br:['BS2','BS1'],X_ch:['ZS2','ZS1']};
+const ADJ={};for(const id in E){for(const n of E[id].slice(0,2))(ADJ[n]=ADJ[n]||[]).push(id)}
+const SWD={BS2:{x:'br',root:'II_w',N:'II_br',R:'X_br'},BS1:{x:'br',root:'I_br',N:'I_w',R:'X_br'},
+  ZS2:{x:'ch',root:'II_cs',N:'II_nb',R:'X_ch'},ZS1:{x:'ch',root:'I_one',N:'I_run',R:'X_ch'}};
+const XNAME={br:'Съезд 1–2 у Берёзовой рощи',ch:'Съезд в камере съездов'};
+const XSUB={br:'западнее станции, для смены пути',ch:'дамба р. Каменки, ул. Кошурникова'};
+const segLen=(a,b)=>Math.hypot(b[0]-a[0],(b[1]-a[1])/(Y2-Y1)*LANE_M);
+function edgePts(id,from){const e=E[id];const p=[N[e[0]],N[e[1]]];return from===e[1]?p.slice().reverse():p}
+function walk(start,edge,dir,pos){
+  let node=start,pts=[N[start]],edges=[],sws=[];
+  for(let g=0;g<30;g++){
+    const e=E[edge],other=e[0]===node?e[1]:e[0];
+    pts.push(N[other]);edges.push(edge);
+    if(END[other])return{end:other,kind:END[other],pts,edges,sws,start};
+    if(STOP[other]===dir)return{end:other,kind:'stop',pts,edges,sws,start};
+    const sd=SWD[other];
+    if(sd){sws.push({node:other,x:sd.x,len:edges.length});
+      if(edge===sd.root)edge=pos[sd.x]?sd.R:sd.N;
+      else{const need=edge===sd.N?0:1;if(pos[sd.x]!==need)return{fail:sd.x};edge=sd.root}}
+    else edge=ADJ[other].find(x=>x!==edge);
+    node=other;
+  }
+  return{fail:'loop'}}
+function mkPath(pts){const cum=[0];for(let i=1;i<pts.length;i++)cum.push(cum[i-1]+segLen(pts[i-1],pts[i]));return{pts,cum,len:cum[cum.length-1]}}
+function posAt(p,s){let i=0;if(s>=p.len)i=p.pts.length-2;else if(s>0){while(i<p.pts.length-2&&p.cum[i+1]<s)i++}
+  const a=p.pts[i],b=p.pts[i+1],L=(p.cum[i+1]-p.cum[i])||1,t=(s-p.cum[i])/L;return{x:a[0]+(b[0]-a[0])*t,y:a[1]+(b[1]-a[1])*t}}
+function cutPath(p,s){const pts=[];for(let i=0;i<p.pts.length;i++){if(p.cum[i]<s-1e-6)pts.push(p.pts[i]);else break}const q=posAt(p,s);pts.push([q.x,q.y]);return pts}
+const DOFF=[];for(let i=0;i<NCAR;i++)for(const q of [.15,.38,.62,.85])DOFF.push(i*(CAR+GAP)+q*CAR);
+
+/* ---------- состояние ---------- */
+const st={t:7*3600,speed:1,paused:false,auto:true,interval:360,turn:150,flow:12,
+  x:{br:0,ch:1},xUntil:{br:0,ch:0},res:{},trains:[],pending:[],seq:1,log:[],pax:[],acc:{BR:0,ZN:0},stats:{dep:0,on:0,late:0,sumLate:0,pax:0,maxWait:0},hist:[],follow:false,followNum:0};
+const fmt=t=>{t=((Math.floor(t)%86400)+86400)%86400;return[t/3600|0,(t%3600)/60|0,t%60].map(v=>String(v).padStart(2,'0')).join(':')};
+const fmtD=d=>{const a=Math.abs(Math.round(d));return(d<0?'−':'+')+(a/60|0)+':'+String(a%60).padStart(2,'0')};
+const num=n=>'№'+String(n).padStart(2,'0');
+const rnd=(a,b)=>a+Math.random()*(b-a);
+let logDirty=true;
+function log(text,w){st.log.unshift({t:st.t,text,w});if(st.log.length>90)st.log.pop();logDirty=true}
+function toast(m){const el=$('#toast');el.textContent=m;el.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>el.hidden=true,2800)}
+const xMoving=x=>st.xUntil[x]>st.t;
+function xLockedBy(x){for(const tr of st.trains)if(tr.swl&&tr.swl.some(l=>l.x===x))return tr;return null}
+function setX(x,v){if(st.x[x]!==v){st.x[x]=v;st.xUntil[x]=st.t+3}}
+
+/* ---------- маршруты ---------- */
+function resFree(r,tr){for(const e of r.edges)if(st.res[e]&&st.res[e]!==tr)return false;return true}
+function applyRoute(tr,r,newPath,s0){
+  tr.path=newPath;let s=s0;tr.swl=tr.swl||[];
+  r.edges.forEach((e,i)=>{s+=segLen(r.pts[i],r.pts[i+1]);st.res[e]=tr;tr.rel.push({id:e,s});
+    const sw=r.sws.find(w=>w.len===i+1);if(sw)tr.swl.push({x:sw.x,s:s+2})});
+  tr.from=r.start;tr.fromS=s0;tr.target=r.end;tr.kind=r.kind}
+function releaseCheck(tr){const tail=tr.headS-TL;
+  tr.rel=tr.rel.filter(r=>{if(tail>r.s){if(st.res[r.id]===tr)delete st.res[r.id];return false}return true});
+  if(tr.swl)tr.swl=tr.swl.filter(l=>tail<=l.s)}
+function freeAll(tr){for(const id in st.res)if(st.res[id]===tr)delete st.res[id];tr.rel=[];tr.swl=[]}
+function reasonOf(r){if(r.fail==='ch')return 'стрелки камеры съездов стоят против маршрута';if(r.fail==='br')return 'стрелки съезда у Берёзовой рощи стоят против маршрута';
+  if(r.kind==='dead')return r.end==='U2'?'съезд в «плюсе» ведёт в недостроенный тоннель II пути':'путь заканчивается упором';return 'нет маршрута'}
+/* светофор открыт, когда маршрут за ним построен (стрелки стоят и не переводятся) и свободен; закрывается, как только голова поезда его проследовала */
+function sigOpen(node,dir){
+  const edge=ADJ[node].find(e=>{const o=E[e][0]===node?E[e][1]:E[e][0];return Math.sign(N[o][0]-N[node][0])===dir});
+  const r=walk(node,edge,dir,st.x);
+  if(r.fail||r.kind==='dead')return false;
+  if(r.sws.some(w=>xMoving(w.x)))return false;
+  for(const e of r.edges){const o=st.res[e];if(!o)continue;
+    const standing=o.target===node&&o.state!=='run'&&o.state!=='leaving';
+    const starting=o.from===node&&o.state==='run'&&o.headS<=o.fromS+1;
+    if(!standing&&!starting)return false}
+  return true}
+function tryRoute(tr){
+  if(tr.target==='CS'&&!sigOpen('CS',1)){const r=walk('CS','II_cs',1,st.x);tr.reason=r.fail||r.kind==='dead'?'светофор М2 закрыт: '+reasonOf(r):'светофор М2 закрыт: однопутный участок занят другим поездом';return false}
+  const node=tr.target,edge=ADJ[node].find(e=>{const o=E[e][0]===node?E[e][1]:E[e][0];return Math.sign(N[o][0]-N[node][0])===tr.dir});
+  const r=walk(node,edge,tr.dir,st.x);
+  if(r.fail||r.kind==='dead'){tr.reason=reasonOf(r);return false}
+  const xs=r.sws.map(w=>w.x);if(xs.some(x=>xMoving(x))){tr.reason='стрелки переводятся';return false}
+  if(!resFree(r,tr)){tr.reason=r.edges.includes('I_one')?'однопутный участок занят другим поездом':'впереди занят блок-участок';return false}
+  tr.reason='';
+  const s0=tr.path.len;applyRoute(tr,r,mkPath([...tr.path.pts,...r.pts.slice(1)]),s0);
+  tr.state='run';return true}
+function reverseAtZN(tr){
+  const r=walk('ZE','I_one',-1,st.x);
+  if(r.fail||r.kind==='dead'){tr.reason=reasonOf(r);return false}
+  if(r.sws.some(w=>xMoving(w.x))){tr.reason='стрелки переводятся';return false}
+  if(!resFree(r,tr)){tr.reason='впереди занят блок-участок';return false}
+  freeAll(tr);tr.dir=-1;tr.headS=TL;tr.v=0;tr.reason='';applyRoute(tr,r,mkPath(r.pts),0);tr.state='run';return true}
+
+/* ---------- поезда ---------- */
+function newTrain(t0){return{num:st.seq++,t0,depZ:t0+360-150+st.turn,dir:1,headS:0,v:VMAX,state:'enter',path:null,rel:[],swl:[],
+  door:0,doorT:0,load:Math.round(rnd(70,160)),toOut:0,emit:0,reason:'',target:'W2'}}
+function vLimit(tr){const p=tr.path;let lim=VMAX;
+  for(const sw of tr.swl){const d=sw.s-tr.headS;if(d<-TL)continue;const need=d<=0?VSW:Math.sqrt(VSW*VSW+2*DEC*d);lim=Math.min(lim,need)}
+  return lim}
+function move(tr,limit,dt){const d=limit-tr.headS;if(d<=0.05){tr.v=0;return true}
+  const vt=Math.max(1.2,Math.min(vLimit(tr),Math.sqrt(2*DEC*d)));
+  tr.v=tr.v<vt?Math.min(vt,tr.v+ACC*dt):vt;tr.headS=Math.min(limit,tr.headS+tr.v*dt);
+  if(limit-tr.headS<=0.05){tr.headS=limit;tr.v=0;return true}return false}
+function atStation(tr){const n=tr.target;return n==='B1w'||n==='B1e'||n==='B2w'||n==='B2e'?'BR':n==='ZE'?'ZN':null}
+function arrive(tr){
+  const stn=atStation(tr),n=tr.target;tr.stopAt=n;
+  if(tr.kind==='exit'){tr.state='leaving';return}
+  if(stn==='BR'){tr.state='dwell';tr.doorT=1;tr.side=n[1]==='1'?'I':'II';const share=tr.dir>0?rnd(.3,.5):rnd(.1,.2);tr.toOut=Math.round(tr.load*share);tr.load-=tr.toOut;tr.readyAt=st.t+(tr.dir>0?25:30);
+    log(`${num(tr.num)} прибыл на Берёзовую рощу, путь ${tr.side}${(tr.dir>0)!==(tr.side==='II')?' (неправильный путь)':''}`)}
+  else if(stn==='ZN'){tr.state='zn';tr.doorT=1;tr.side='I';tr.toOut=tr.load;tr.load=0;tr.arrZ=st.t;tr.readyAt=Math.max(st.t+90,tr.depZ);
+    log(`${num(tr.num)} прибыл на Золотую Ниву, высадка ${tr.toOut} чел., машинист меняет кабину`)}
+  else{tr.state='hold';tr.since=st.t}
+}
+function updTrain(tr,dt){
+  tr.door+=Math.sign(tr.doorT-tr.door)*Math.min(dt/1.5,Math.abs(tr.doorT-tr.door));
+  if(tr.door>=1&&tr.toOut>0){tr.emit+=dt*9;while(tr.emit>=1&&tr.toOut>0){tr.emit--;tr.toOut--;emitOut(tr)}}
+  switch(tr.state){
+  case 'run':releaseCheck(tr);
+    if(tr.kind==='stop'&&tr.target==='CS'&&tr.path.len-tr.headS<300&&sigOpen('CS',1)){if(tryRoute(tr))log(`М2 открыт, ${num(tr.num)} проходит камеру съездов без остановки`)}
+    if(move(tr,tr.path.len,dt))arrive(tr);break;
+  case 'leaving':releaseCheck(tr);tr.v=Math.min(VMAX,tr.v+ACC*dt);tr.headS+=tr.v*dt;if(posAt(tr.path,tr.headS-TL).x<X0-60){freeAll(tr);tr.gone=true}break;
+  case 'dwell':if(st.t>=tr.readyAt-4&&tr.toOut<=0)tr.doorT=0;
+    if(tr.doorT===0&&tr.door<=0&&st.t>=tr.readyAt)tryRoute(tr);
+    if(tr.state==='run')log(`${num(tr.num)} отправился с Берёзовой рощи ${tr.dir>0?'на Золотую Ниву':'на Маршала Покрышкина'}, ${tr.load} пасс.`);
+    break;
+  case 'hold':if(tryRoute(tr)){if(tr.stopAt==='CS')st.stats.maxWait=Math.max(st.stats.maxWait,st.t-tr.since);if(tr.stopAt==='CS')log(`Маршрут через камеру съездов на I путь: ${num(tr.num)}${st.t-tr.since>20?', ждал '+fmtD(st.t-tr.since).slice(1):''}`,st.t-tr.since>60)}break;
+  case 'zn':
+    if(st.t>=tr.readyAt-6&&tr.toOut<=0)tr.doorT=0;
+    if(tr.doorT===0&&tr.door<=0&&st.t>=tr.readyAt){if(reverseAtZN(tr)){st.stats.dep++;const d=st.t-tr.depZ;st.stats.pax+=tr.load;if(d<=30)st.stats.on++;else{st.stats.late++;st.stats.sumLate+=d}st.hist.unshift({num:tr.num,dep:tr.depZ,fact:st.t});if(st.hist.length>3)st.hist.pop();
+      log(`${num(tr.num)} отправился с Золотой Нивы, ${tr.load} пасс., ${fmtD(d)}`,d>30)}}
+    break;
+  case 'enter':break;
+  }}
+
+/* ---------- пассажиры ---------- */
+const PL={BR:{x0:BR0,x1:BR1},ZN:{x0:ZN0,x1:ZN1}};
+const yEdge=side=>side==='I'?Y1+11:Y2-11;
+function spawnPax(stn){const p=PL[stn];const ex=Math.random()<.5?p.x0+6:p.x1-6;
+  const side=stn==='ZN'?'I':(Math.random()<.75?'I':'II');
+  const tx=rnd(p.x0+4,p.x1-4),ty=side==='I'?Y1+14+rnd(0,6):Y2-14-rnd(0,6);
+  st.pax.push({stn,side,x:ex,y:(Y1+Y2)/2+rnd(-4,4),tx,ty,v:rnd(1.0,1.4),state:'walk',kind:'in'})}
+function emitOut(tr){const o=DOFF[Math.random()*DOFF.length|0];const q=posAt(tr.path,tr.headS-o);const stn=q.x<800?'BR':'ZN';const p=PL[stn];
+  const ex=Math.abs(q.x-p.x0)<Math.abs(q.x-p.x1)?p.x0+6:p.x1-6;
+  st.pax.push({stn,x:q.x,y:yEdge(tr.side),tx:ex,ty:(Y1+Y2)/2+rnd(-4,4),v:rnd(1.2,1.6),state:'exit',kind:'out'})}
+
+function step(dt){
+  st.t+=dt;
+  while(st.t>=st.nextSpawn){st.pending.push(newTrain(st.nextSpawn));st.nextSpawn+=st.interval}
+  if(st.pending.length){const tr=st.pending[0];const r=walk('W2','II_w',1,st.x);
+    if(!r.fail&&r.kind!=='dead'&&resFree(r,tr)&&!r.sws.some(w=>xMoving(w.x))){st.pending.shift();applyRoute(tr,r,mkPath(r.pts),0);tr.state='run';st.trains.push(tr);
+      const late=st.t-tr.t0;log(`${num(tr.num)} подходит от Маршала Покрышкина${late>20?', задержан на '+fmtD(late).slice(1):''}`,late>20)}}
+  if(st.auto)dispatch();
+  for(const tr of st.trains)updTrain(tr,dt);
+  st.trains=st.trains.filter(t=>!t.gone);
+  // пассажиры
+  for(const stn of ['BR','ZN']){st.acc[stn]+=dt*st.flow/60;while(st.acc[stn]>=1){st.acc[stn]--;if(st.pax.filter(p=>p.stn===stn&&p.kind==='in').length<350)spawnPax(stn)}}
+  const boarding=st.trains.filter(t=>(t.state==='dwell'||t.state==='zn')&&t.doorT===1&&t.door>.85&&t.toOut<=0);
+  for(const p of st.pax){
+    if(p.kind==='in'){const bt=boarding.find(t=>atStation(t)===p.stn&&t.side===p.side&&(p.stn==='ZN'||(t.dir>0)===(p.side==='II')));
+      if(bt&&p.state!=='toDoor'){let best=1e9,bx=0;for(const o of DOFF){const q=posAt(bt.path,bt.headS-o);if(Math.abs(q.x-p.x)<best){best=Math.abs(q.x-p.x);bx=q.x}}
+        p.tx=bx;p.ty=yEdge(p.side)+(p.side==='I'?-3:3);p.state='toDoor';p.bt=bt}
+      else if(!bt&&p.state==='toDoor'){p.state='walk';p.tx=rnd(PL[p.stn].x0+4,PL[p.stn].x1-4);p.ty=p.side==='I'?Y1+14+rnd(0,6):Y2-14-rnd(0,6)}}
+    const dx=p.tx-p.x,dy=(p.ty-p.y)*0.25,d=Math.hypot(dx,dy),s=p.v*dt;
+    if(d<=s){p.x=p.tx;p.y=p.ty;if(p.state==='walk')p.state='wait';else if(p.state==='toDoor'){p.dead=true;if(p.bt)p.bt.load++}else if(p.state==='exit')p.dead=true}
+    else if(p.state!=='wait'){p.x+=dx/d*s;p.y+=dy/d*s*4}}
+  st.pax=st.pax.filter(p=>!p.dead);
+}
+function dispatch(){
+  if(!xLockedBy('br')&&!xMoving('br')&&st.x.br!==0)setX('br',0);
+  if(xLockedBy('ch')||xMoving('ch'))return;
+  const z=st.trains.find(t=>t.state==='zn');
+  const w=st.trains.find(t=>(t.state==='hold'&&t.stopAt==='CS')||(t.state==='run'&&t.kind==='stop'&&t.target==='CS'&&t.path.len-t.headS<400));
+  if(z&&st.t>=z.readyAt-25){if(st.x.ch!==0)setX('ch',0);return}
+  if(w&&!st.res.I_one){if(st.x.ch!==1)setX('ch',1)}
+}
+
+(function init(){
+  st.nextSpawn=st.t+st.interval;
+  // поезд у платформы Золотой Нивы и поезд на подходе
+  const a=newTrain(st.t-300);a.depZ=st.t+70;
+  const r=walk('W2','II_w',1,{br:0,ch:1});const r2=walk('B2e','II_run',1,{br:0,ch:1});const r3=walk('CS','II_cs',1,{br:0,ch:1});
+  const pts=[...r.pts,...r2.pts.slice(1),...r3.pts.slice(1)];a.path=mkPath(pts);a.headS=a.path.len;a.target='ZE';
+  for(const id of ['I_one'])st.res[id]=a;a.rel=[{id:'I_one',s:a.path.len}];a.state='zn';a.doorT=1;a.door=1;a.side='I';a.load=0;a.readyAt=a.depZ;a.arrZ=st.t-60;a.stopAt='ZE';
+  st.trains.push(a);
+  st.pending.push(newTrain(st.t));
+  for(let i=0;i<20;i++)spawnPax('BR');for(let i=0;i<25;i++)spawnPax('ZN');
+  st.pax.forEach(p=>{p.x=p.tx;p.y=p.ty;p.state='wait'});
+  log('Дежурство принято. Однопутное движение от камеры съездов до Золотой Нивы');
+})();
+
+/* ---------- отрисовка ---------- */
+let k=0.6,dpr=1,zoom='fit';
+const sc=$('#scroller');
+function resize(){const w=sc.clientWidth||1200;k=zoom==='fit'?Math.max(.5,(w-4)/(X1-X0)):1.55;dpr=window.devicePixelRatio||1;
+  const cw=Math.round((X1-X0)*k);cv.width=Math.round(cw*dpr);cv.height=Math.round(H*dpr);cv.style.width=cw+'px';cv.style.height=H+'px'}
+window.addEventListener('resize',resize);resize();
+const PX=x=>(x-X0)*k;
+function line(pts,col,w,dash){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.setLineDash(dash||[]);ctx.beginPath();ctx.moveTo(PX(pts[0][0]),pts[0][1]);for(let i=1;i<pts.length;i++)ctx.lineTo(PX(pts[i][0]),pts[i][1]);ctx.stroke();ctx.setLineDash([])}
+function txt(t,x,y,col,size,o={}){ctx.fillStyle=col;ctx.font=`${o.italic?'italic ':''}${o.bold?'700 ':''}${size}px ${o.mono?'"PT Mono",Consolas,monospace':'"PT Sans",Tahoma,sans-serif'}`;ctx.textAlign=o.align||'left';ctx.textBaseline=o.base||'alphabetic';ctx.fillText(t,x,y)}
+const blink=()=>(performance.now()/300|0)%2===0;
+function dim(x0,x1,y,label){line([[x0,y],[x1,y]],C.blue,1);line([[x0,y-4],[x0,y+4]],C.blue,1);line([[x1,y-4],[x1,y+4]],C.blue,1);txt(label,PX((x0+x1)/2),y-4,C.blue,11,{align:'center',mono:true,bold:true})}
+function draw(){
+  ctx.setTransform(dpr,0,0,dpr,0,0);const Wp=(X1-X0)*k;
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,Wp,H);
+  // тоннели
+  ctx.fillStyle='#f3f6f4';ctx.fillRect(PX(X0),Y1-22,PX(X1)-PX(X0),Y2-Y1+44);
+  ctx.fillStyle='#fff';
+  // Каменка в коллекторе
+  const kx=667;ctx.fillStyle=C.blue;ctx.globalAlpha=.85;ctx.fillRect(PX(kx)-7,22,14,Y1-40);ctx.fillRect(PX(kx)-7,Y2+26,14,H-Y2-40);ctx.globalAlpha=1;
+  ctx.strokeStyle=C.blue;ctx.lineWidth=1.5;ctx.strokeRect(PX(kx)-7,Y1-18,14,Y2-Y1+36);
+  txt('р. Каменка',PX(kx)+12,34,C.blue,12,{bold:true});txt('в коллекторе',PX(kx)+12,48,C.blue,11);
+  // камера съездов
+  ctx.setLineDash([5,4]);ctx.strokeStyle='#555';ctx.lineWidth=1.2;ctx.strokeRect(PX(CH0-10),Y1-30,PX(CH1+6)-PX(CH0-10),Y2-Y1+60);ctx.setLineDash([]);
+  txt('Камера съездов',PX(CH0-14),Y2+46,C.ink,13,{bold:true,align:'right'});txt('в дамбе, ул. Кошурникова',PX(CH0-14),Y2+60,C.mute,11,{align:'right'});
+  // демонтажная камера
+  ctx.strokeStyle='#888';ctx.lineWidth=1;ctx.strokeRect(PX(DEMO-6),Y1-16,PX(DEMO+6)-PX(DEMO-6),Y2-Y1+32);txt('демонтажная камера',PX(DEMO),Y2+44,C.mute,11,{align:'center'});
+  // станции
+  for(const [x0,x1,name,pk] of [[BR0,BR1,'Берёзовая роща','ПК91+79.65'],[ZN0,ZN1,'Золотая Нива','ПК75+74.64']]){
+    ctx.fillStyle='#e7f4ea';ctx.fillRect(PX(x0),Y1-20,PX(x1)-PX(x0),Y2-Y1+40);
+    ctx.fillStyle=C.green;ctx.fillRect(PX(x0),Y1+7,PX(x1)-PX(x0),Y2-Y1-14);
+    ctx.fillStyle='#d9efdf';ctx.fillRect(PX(x0)+2,Y1+9,PX(x1)-PX(x0)-4,Y2-Y1-18);
+    line([[x0,Y1+10],[x1,Y1+10]],'#e2a400',1,[3,3]);line([[x0,Y2-10],[x1,Y2-10]],'#e2a400',1,[3,3]);
+    for(const ex of [x0,x1]){ctx.fillStyle='#fff';ctx.strokeStyle='#444';ctx.lineWidth=1;const w=Math.max(8,7*k);ctx.fillRect(PX(ex)-(ex===x0?0:w),(Y1+Y2)/2-7,w,14);ctx.strokeRect(PX(ex)-(ex===x0?0:w),(Y1+Y2)/2-7,w,14)}
+    txt(name,PX((x0+x1)/2),Y1-44,C.green,17,{bold:true,align:'center'});txt(pk,PX((x0+x1)/2),Y1-28,C.pk,12,{align:'center'});
+  }
+  ctx.fillStyle='#8fb79a';for(let x=ZN0+6;x<ZN1-4;x+=4)ctx.fillRect(PX(x)-1,(Y1+Y2)/2-1,2,2);
+  // занятость / маршруты
+  for(const id in st.res){const tr=st.res[id];const pts=edgePts(id,E[id][0]);const occ=bodyOn(tr,pts);line(pts,occ?C.occ:C.route,8)}
+  // пути
+  const G=C.green;
+  for(const id in E){if(id==='II_nb'||id==='I_end')continue;let pts=edgePts(id,E[id][0]);if(pts[0][0]<X0-50)pts=[[X0-20,pts[0][1]],pts[1]];line(pts,G,3)}
+  line([N.ZE,N.BUMP],G,3);line([[N.BUMP[0],Y1-7],[N.BUMP[0],Y1+7]],C.ink,3);
+  line([N.ZS2,N.U2],G,3);line([[N.U2[0],Y2-7],[N.U2[0],Y2+7]],C.ink,3);
+  line([N.U2,[ZN1+30,Y2]],'#9a9a9a',2.2,[6,5]);
+  txt('тоннель II пути не достроен',PX(1130),Y2+18,'#777',12,{align:'center',italic:true});
+  // стрелки
+  for(const nd in SWD){const sd=SWD[nd],p=N[nd],pos=st.x[sd.x],mv=xMoving(sd.x);
+    const dir=e=>{const q=edgePts(e,nd);const dx=PX(q[1][0])-PX(q[0][0]),dy=q[1][1]-q[0][1],d=Math.hypot(dx,dy);return[dx/d,dy/d]};
+    const u=dir(pos?sd.N:sd.R);if(!mv||blink()){ctx.strokeStyle='#fff';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(PX(p[0])+u[0]*5,p[1]+u[1]*5);ctx.lineTo(PX(p[0])+u[0]*13,p[1]+u[1]*13);ctx.stroke()}
+    if(mv&&blink()){const a=dir(pos?sd.R:sd.N);ctx.strokeStyle=C.sigY;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(PX(p[0]),p[1]);ctx.lineTo(PX(p[0])+a[0]*13,p[1]+a[1]*13);ctx.stroke()}
+    const lab=nd.endsWith('1')?'1':'2';txt(lab,PX(p[0]),p[1]+(p[1]===Y1?-9:20),C.ink,12,{bold:true,align:'center',mono:true})}
+  for(const x of ['br','ch']){const c=xCenter(x);const lk=xLockedBy(x);ctx.strokeStyle=lk?'#bbb':(hover===x?C.blue:'#444');ctx.lineWidth=1.3;ctx.beginPath();ctx.ellipse(c[0],c[1],hover===x?24:20,Y2-Y1-30,0,0,Math.PI*2);ctx.stroke();
+    txt(st.x[x]?'−':'+',c[0],c[1]+5,st.x[x]?C.red:C.route,15,{bold:true,align:'center',mono:true})}
+  // номера путей
+  for(const [y,l] of [[Y1,'I'],[Y2,'II']]){ctx.fillStyle=G;ctx.beginPath();ctx.arc(PX(X0)+14,y,10,0,Math.PI*2);ctx.fill();txt(l,PX(X0)+14,y+1,'#fff',11,{bold:true,align:'center',base:'middle'})}
+  txt('← Маршала Покрышкина',PX(X0)+30,Y2+34,C.green,13,{bold:true});
+  // размеры
+  dim(BR1,DEMO,H-34,'150 м');dim(DEMO,CH0,H-34,'442 м');dim(0,1605,H-12,'1605 м между осями станций');
+  txt('однопутный участок, I путь',PX((CH1+ZN0)/2),Y1-10,C.green,12,{align:'center',italic:true});
+  // светофоры
+  const sig=(x,y,col,label,up)=>{const px=PX(x),yy=y+(up?-16:16);ctx.strokeStyle='#444';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(px,y+(up?-4:4));ctx.lineTo(px,yy);ctx.stroke();
+    ctx.fillStyle='#111';ctx.beginPath();ctx.arc(px,yy+(up?-4:4),5,0,Math.PI*2);ctx.fill();ctx.fillStyle=col;ctx.beginPath();ctx.arc(px,yy+(up?-4:4),3.5,0,Math.PI*2);ctx.fill();
+    txt(label,px+7,yy+(up?-1:8),C.mute,10,{mono:true})};
+  sig(BR1+2,Y2,sigOpen('B2e',1)?C.sigG:C.sigR,'Н2',false);
+  sig(620,Y2,sigOpen('CS',1)?C.sigG:C.sigR,'М2',false);
+  sig(ZN0-2,Y1,sigOpen('ZE',-1)?C.sigG:C.sigR,'Н1',true);
+  sig(BR0-2,Y1,sigOpen('B1w',-1)?C.sigG:C.sigR,'НБ1',true);
+  // поезда
+  for(const tr of st.trains)drawTrain(tr);
+  for(const p of st.pax){ctx.fillStyle=p.kind==='in'?'#e0a800':C.blue;ctx.beginPath();ctx.arc(PX(p.x),p.y,1.5,0,Math.PI*2);ctx.fill()}
+}
+function xCenter(x){const a=x==='br'?N.BS2:N.ZS2,b=x==='br'?N.BS1:N.ZS1;return[(PX(a[0])+PX(b[0]))/2,(Y1+Y2)/2]}
+function bodyOn(tr,pts){if(!tr.path)return false;const a=Math.min(pts[0][0],pts[1][0]),b=Math.max(pts[0][0],pts[1][0]);const ya=pts[0][1],yb=pts[1][1];
+  for(let s=tr.headS;s>=tr.headS-TL;s-=6){const q=posAt(tr.path,s);if(q.x>a+1&&q.x<b-1){const t=(q.x-pts[0][0])/(pts[1][0]-pts[0][0]);const y=ya+(yb-ya)*t;if(Math.abs(q.y-y)<3)return true}}return false}
+function carPts(p,sb,sf){const pts=[posAt(p,sb)];for(let i=1;i<p.pts.length-1;i++)if(p.cum[i]>sb&&p.cum[i]<sf)pts.push({x:p.pts[i][0],y:p.pts[i][1]});pts.push(posAt(p,sf));return pts.map(q=>[q.x,q.y])}
+function drawTrain(tr){const p=tr.path;if(!p)return;
+  for(let i=0;i<NCAR;i++){const sf=tr.headS-i*(CAR+GAP),sb=sf-CAR;if(sf<=0)continue;const pts=carPts(p,Math.max(0,sb),sf);
+    line(pts,'#fff',12);line(pts,C.train,9);line(pts,C.trainHi,2)}
+  const h=posAt(p,tr.headS),t=posAt(p,tr.headS-TL);
+  ctx.fillStyle='#fff8c0';ctx.beginPath();ctx.arc(PX(h.x),h.y,2.2,0,Math.PI*2);ctx.fill();ctx.fillStyle=C.red;ctx.beginPath();ctx.arc(PX(t.x),t.y,2,0,Math.PI*2);ctx.fill();
+  if(tr.state==='dwell'||tr.state==='zn'){const dy=tr.side==='I'?6:-6;for(const o of DOFF){const q=posAt(p,tr.headS-o);const w=Math.max(2,(1.2+tr.door*1.6)*k);ctx.fillStyle=tr.door>.05?C.door:C.trainHi;ctx.fillRect(PX(q.x)-w/2,q.y+dy-1.5,w,3)}}
+  const m=posAt(p,tr.headS-TL/2);if(m.x<X0-20||m.x>X1)return;
+  let lab=num(tr.num)+(tr.dir>0?' →':' ←');
+  if(tr.state==='zn')lab+=` ${fmt(tr.depZ).slice(0,5)}`;else if(tr.state==='hold')lab+=' ждёт';
+  ctx.font='11px "PT Mono",Consolas,monospace';const w=ctx.measureText(lab).width+8;
+  let lx=PX(m.x)-w/2,ly=m.y<(Y1+Y2)/2?m.y-24:m.y+18;if(tr.state==='zn'){ly=Y2+44;lx=PX(ZN1)-w}
+  lx=Math.max(2,Math.min((X1-X0)*k-w-2,lx));
+  ctx.fillStyle='rgba(255,255,255,.94)';ctx.fillRect(lx,ly-8,w,16);ctx.strokeStyle=C.train;ctx.lineWidth=1;ctx.strokeRect(lx,ly-8,w,16);txt(lab,lx+4,ly+4,C.train,11,{mono:true})}
+
+/* ---------- ввод ---------- */
+let hover=null;
+function xAt(e){const r=cv.getBoundingClientRect();const x=e.clientX-r.left,y=e.clientY-r.top;for(const n of ['br','ch']){const c=xCenter(n);if(Math.abs(c[0]-x)<30&&Math.abs(c[1]-y)<40)return n}return null}
+cv.addEventListener('mousemove',e=>{hover=xAt(e);cv.style.cursor=hover?'pointer':'default'});
+cv.addEventListener('mouseleave',()=>hover=null);
+cv.addEventListener('click',e=>{const x=xAt(e);if(x){manual(x,1-st.x[x]);return}
+  const r=cv.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;let best=null,bd=40;
+  for(const t of st.trains){if(!t.path)continue;const m=posAt(t.path,t.headS-TL/2);const d=Math.hypot(PX(m.x)-mx,m.y-my);if(d<bd){bd=d;best=t}}
+  if(best){st.followNum=best.num;setFollow(true);toast(`Камера следит за поездом ${num(best.num)}`)}});
+function setFollow(on){st.follow=on;$('#follow').setAttribute('aria-pressed',String(on));if(on&&zoom!=='big'){zoom='big';rZ();resize()}}
+$('#follow').addEventListener('click',()=>{if(!st.follow&&!st.trains.some(t=>t.num===st.followNum)){const t=st.trains.find(t=>t.dir>0)||st.trains[0];if(t)st.followNum=t.num}setFollow(!st.follow)});
+$('#restart').addEventListener('click',()=>{try{location.reload()}catch(e){}});
+function followCam(){if(!st.follow||zoom!=='big')return;let t=st.trains.find(t=>t.num===st.followNum);
+  if(!t){t=st.trains.filter(t=>t.dir>0).sort((a,b)=>a.num-b.num)[0]||st.trains[0];if(!t)return;st.followNum=t.num}
+  if(!t.path)return;const x=PX(posAt(t.path,t.headS-TL/2).x)-sc.clientWidth/2;sc.scrollLeft+= (x-sc.scrollLeft)*0.12}
+function goManual(){if(st.auto){st.auto=false;$('#auto').checked=false;log('Переход на ручное управление стрелками',true)}}
+function manual(x,v){const lk=xLockedBy(x);if(lk){toast(`${XNAME[x]} замкнут маршрутом поезда ${num(lk.num)}`);return}
+  if(xMoving(x)){toast('Стрелки ещё переводятся');return}goManual();if(st.x[x]===v)return;setX(x,v);log(`${XNAME[x]}: стрелки переведены в ${v?'минус':'плюс'}`);renderSW()}
+const swBox=$('#switches');
+swBox.innerHTML=['ch','br'].map(x=>`<div class="sw" data-x="${x}"><div class="nm">${XNAME[x]}<small>${XSUB[x]}</small></div><div class="seg" role="group" aria-label="${XNAME[x]}"><button data-v="0">+ прямо</button><button data-v="1">− по съезду</button></div><div class="st"></div></div>`).join('');
+swBox.addEventListener('click',e=>{const b=e.target.closest('button');if(b)manual(b.closest('.sw').dataset.x,+b.dataset.v)});
+function renderSW(){swBox.querySelectorAll('.sw').forEach(el=>{const x=el.dataset.x,lk=xLockedBy(x),mv=xMoving(x);
+  el.querySelectorAll('button').forEach(b=>{b.setAttribute('aria-pressed',String(+b.dataset.v===st.x[x]));b.disabled=!!lk||mv});
+  const s=el.querySelector('.st');s.className='st'+(lk?' lock':mv?' mv':'');s.textContent=lk?`замкнут маршрутом ${num(lk.num)}`:mv?'переводятся…':(st.x[x]?'стрелки в минусе':'стрелки в плюсе')})}
+$('#auto').addEventListener('change',e=>{st.auto=e.target.checked;log(st.auto?'Автоматика маршрутов включена':'Переход на ручное управление стрелками',!st.auto)});
+const sp=$('#speed');function rSp(){sp.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(+b.dataset.s===st.speed)))}
+sp.addEventListener('click',e=>{const b=e.target.closest('button');if(b){st.speed=+b.dataset.s;rSp()}});rSp();
+const zb=$('#zoom');function rZ(){zb.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.z===zoom)))}
+zb.addEventListener('click',e=>{const b=e.target.closest('button');if(b){zoom=b.dataset.z;rZ();resize()}});rZ();
+$('#pause').addEventListener('click',e=>{st.paused=!st.paused;e.target.textContent=st.paused?'Продолжить':'Пауза'});
+const mm=s=>(s/60|0)+':'+String(s%60).padStart(2,'0');
+function rIn(){$('#intervalV').textContent=mm(st.interval);$('#turnV').textContent=mm(st.turn);$('#flowV').textContent=st.flow+' чел/мин на станцию'}
+$('#interval').addEventListener('input',e=>{const o=st.interval;st.interval=+e.target.value;st.nextSpawn=Math.max(st.t,st.nextSpawn+st.interval-o);rIn()});
+$('#interval').addEventListener('change',()=>log(`Интервал изменён: ${mm(st.interval)}`));
+$('#turn').addEventListener('input',e=>{st.turn=+e.target.value;rIn()});
+$('#flow').addEventListener('input',e=>{st.flow=+e.target.value;rIn()});rIn();
+
+/* ---------- панели ---------- */
+function where(t){if(st.pending.includes(t))return 'на подходе, ждёт свободный блок';const x=posAt(t.path,t.headS).x;
+  switch(t.state){case 'dwell':return `Берёзовая роща, путь ${t.side}`;case 'zn':return 'Золотая Нива, смена кабины, посадка';
+    case 'hold':return t.stopAt==='CS'?'у камеры съездов, ждёт однопутку':'ждёт маршрут';
+    case 'run':return t.dir>0?(x<BR0?'подходит к Берёзовой роще':x<CH0?'перегон к камере съездов':'однопутный участок → Зол. Нива'):(x>CH1?'однопутный участок → Бер. роща':x>BR1?'перегон к Берёзовой роще':'уходит на Маршала Покрышкина');
+    case 'leaving':return 'уходит на Маршала Покрышкина';}return ''}
+function renderPanels(){
+  $('#clock').textContent=fmt(st.t);
+  const list=[...st.trains.filter(t=>t.dir>0||t.state==='zn'),...st.pending].sort((a,b)=>a.depZ-b.depZ).slice(0,5);
+  const rows=list.map(t=>{const late=st.t>t.depZ;return`<tr><td class="n">${num(t.num)}</td><td class="n${late?' late':''}">${fmt(t.depZ).slice(0,5)}${late?' '+fmtD(st.t-t.depZ):''}</td><td>${where(t)}</td></tr>`});
+  st.hist.slice(0,2).forEach(h=>{const d=h.fact-h.dep;rows.push(`<tr><td class="n old">${num(h.num)}</td><td class="n ${d>30?'late':'ok'}">${fmt(h.dep).slice(0,5)} ${fmtD(d)}</td><td class="old">ушёл ${fmt(h.fact).slice(0,5)}</td></tr>`)});
+  $('#sched').innerHTML=rows.join('');
+  {const S=st.stats;const tot=S.on+S.late;const pct=tot?Math.round(S.on/tot*100):100;const avg=S.late?Math.round(S.sumLate/S.late):0;
+   let g='Отличная смена',c='good';if(pct<90||st.pending.length>1){g='Есть задержки';c='mid'}if(pct<60||st.pending.length>2){g='Затор на линии';c='bad'}if(!tot)g='Смена началась';
+   $('#score').innerHTML=`<div class="grade ${tot?c:''}">${g}</div><div>Вовремя с Золотой Нивы: <b>${S.on} из ${tot}</b> (${pct}%)${S.late?` · среднее опоздание ${fmtD(avg)}`:''}</div><div>Дольше всего ждали у М2: <b>${S.maxWait?fmtD(S.maxWait).slice(1):'0:00'}</b> · увезли с Золотой Нивы <b>${S.pax}</b> чел.</div>`;
+   $('#cap').textContent=`однопутка пропускает ≈ 1 поезд в ${mm(Math.round((110+st.turn)/15)*15)}`}
+  $('#sDep').textContent=st.stats.dep;$('#sBR').textContent=st.pax.filter(p=>p.stn==='BR'&&p.kind==='in').length;$('#sZN').textContent=st.pax.filter(p=>p.stn==='ZN'&&p.kind==='in').length;
+  const hs=[];for(const t of st.trains)if((t.state==='hold'||t.state==='dwell'||t.state==='zn')&&t.reason)hs.push(`${num(t.num)}: ${t.reason}.`);
+  if(st.pending.length)hs.push(`Поездов на подходе от Маршала Покрышкина: ${st.pending.length}.`);
+  $('#hints').innerHTML=hs.length?hs.slice(0,4).map(h=>`<div class="hint">${h}</div>`).join(''):`<div class="hint ok">${st.auto?'Маршруты задаются автоматически.':'Ни один поезд не ждёт маршрута.'}</div>`;
+  renderSW();
+  if(logDirty){$('#log').innerHTML=st.log.map(l=>`<div><span>${fmt(l.t)}</span><span class="${l.w?'w':''}">${l.text}</span></div>`).join('');logDirty=false}
+}
+let last=performance.now(),uiT=0;
+function frame(now){const dt=Math.min(.05,Math.max(0,(now-last)/1000));last=now;
+  if(!st.paused){let s=dt*st.speed;while(s>0){const h=Math.min(.1,s);step(h);s-=h}}
+  draw();followCam();uiT+=dt;if(uiT>.25){uiT=0;renderPanels()}requestAnimationFrame(frame)}
+$('#auto').checked=true;renderPanels();requestAnimationFrame(frame);
+window.__st=st;
+})();
+</script>
+
+</html>
