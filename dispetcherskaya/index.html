@@ -370,7 +370,7 @@ function stepPath(t,dt){const P=t.pth;if(P.wait>st.epoch)return;const leg=P.legs
 const allTrains=()=>[...st.trains,...st.spurTr,...st.pathTr,...st.depotTr];
 const findTr=(id)=>allTrains().find(t=>t.id===id);
 const isEmpty=t=>t.withdrawn||!!t.dest;
-function toLoop(t,u){st.depotTr=st.depotTr.filter(x=>x!==t);st.spurTr=st.spurTr.filter(x=>x!==t);st.pathTr=st.pathTr.filter(x=>x!==t);t.pth=null;t.where='loop';t.state='run';t.u=md(u,t.L);t.v=0;t.slot=-1;t.sp=null;t.skipU=-1;t.delay=0;t.var=-1;t.zone=null;t.zres=null;st.trains.push(t)}
+function toLoop(t,u){if(!t)return;st.depotTr=st.depotTr.filter(x=>x!==t);st.spurTr=st.spurTr.filter(x=>x!==t);st.pathTr=st.pathTr.filter(x=>x!==t);t.pth=null;t.where='loop';t.state='run';t.u=md(u,t.L);t.v=0;t.slot=-1;t.sp=null;t.skipU=-1;t.delay=0;t.var=-1;t.zone=null;t.zres=null;st.trains.push(t)}
 function toDepot(t,slot){t.state='gone';t.where='depot';t.slot=slot!=null?slot:freeSlot();t.pth=null;t.v=0;t.load=0;t.delay=0;t.var=-1;t.zone=null;t.zres=null;t.withdrawn=false;t.limp=false;t.limpStop=false;t.limpNext=false;t.frozen=false;t.ram=null;t.flags={};
   if(t.dest&&t.dest.k==='spur')spurDel(t.dest.X,t);t.dest=null;t.manual=false;t.dropAt=false;t.wantOut=null;
   if(t.thenMove!=null){t.wantMove=t.thenMove;t.thenMove=null}if(t.damaged){t.damaged=false;t.repairUntil=st.epoch+rnd(7200,14400)}t.incType=null;t.dHold=false;t.vcap=null;t.skipStop=null;t.spurHold=false;t.hold=false;t.fv=null;if(t.after){t.wantOut=t.after;t.after=null}st.depotTr.push(t)}
@@ -543,6 +543,7 @@ function stepTrain(tr,dt){const L=tr.L;
       if(tr.dHold&&tr.dwellK!=='spurrev')return;
       if(tr.revSi!=null&&tr.dwellK==='st'&&tr.stopSi===tr.revSi){if(doReverse(tr))return}
       if(tr.dwellK==='tupik'&&tr.dest&&tr.dest.k==='tupik'){const T=tr.dest.T;tr.dest=null;tr.state='park';tr.hold=true;tr.load=0;tr.delay=0;tr.manual=true;toast(`Состав №${tr.id} поставлен в отстой: ${T.lab}, «${T.name}»`);RADIO.norm(tr,`Диспетчер, поезд №${tr.id} в тупике ${T.num} станции ${T.name}, состав закрепил, жду указаний.`);return}
+      if(tr.dwellK==='spurrev'&&!(tr.dest&&tr.dest.k==='spur'&&tr.dest.X))tr.dwellK='st';
       if(tr.dwellK==='spurrev'){if(tr.dest.X.list.some(o=>o!==tr&&o.where==='spur'&&o.sp.leg==='out')){tr.until=st.epoch+3;return}enterSpur(tr);return}
       if(tr.dwellK==='tupik'&&!svc(st.epoch)&&!tr.dest&&tr.zone&&tr.zone.cap>1&&st.trains.filter(o=>o.state==='park'&&o.zone===tr.zone).length<tr.zone.cap-1){tr.state='park';tr.load=0;tr.delay=0;return}
       if(tr.dwellK==='tupik'&&!svc(st.epoch)&&!tr.dest)tr.withdrawn=true;
@@ -662,9 +663,9 @@ function init(now){st.trains=[];st.spurTr=[];st.depotTr=[];st.pathTr=[];st.ghost
   let id=0;for(const L of LINES)for(const f of INFO.fleet[L.key])for(let k=0;k<f.n;k++){const t=mkConsist(L,++id,f);t.home=L;t.slot=freeSlot();t.washed=e0-rnd(0,30)*3600;st.depotTr.push(t)}
   const take=L=>{const c=st.depotTr.filter(t=>t.L===L);const t=pick(c);st.depotTr=st.depotTr.filter(x=>x!==t);return t};
   for(const S of SW){S.manual=false;S.thr=0;S.state='plus';S.resBy=null;S.resUntil=0}
-  if(!isOpen(e0))for(const sid of SPUR_INIT){const X=SPURS.find(x=>x.id===sid);if(!X)continue;const t=take(X.Lr);t.where='spur';t.state='spur';t.slot=-1;t.sp={X,leg:'stand',s:X.R.len,poly:X.R,req:null,end:X.R.len};X.list=[t];st.spurTr.push(t)}
-  for(const L of LINES){const n=isOpen(e0)?target(L,e0):0;for(let k=0;k<n;k++){let u=k*L.Lp/n+rnd(0,40);for(const z of L.zones)if(inZone(z,L,u)||inZone(z,L,u-MAXTL))u=z.u0+z.len+5;const t=take(L);toLoop(t,u);t.v=12;t.load=Math.round(rnd(60,300))}
-    if(!isOpen(e0)){for(const z of L.zones.filter(z=>z.cap>1)){for(let v=0;v<z.cap-1;v++){const sg=L.segs.find(s=>s.kind===(z.term===0?'in0':'in1'));const t=take(L);toLoop(t,sg.u0+sg.len);t.state='park';t.var=v;t.zres=z.id}}}}
+  if(!isOpen(e0))for(const sid of SPUR_INIT){const X=SPURS.find(x=>x.id===sid);if(!X)continue;const t=take(X.Lr);if(!t)continue;t.where='spur';t.state='spur';t.slot=-1;t.sp={X,leg:'stand',s:X.R.len,poly:X.R,req:null,end:X.R.len};X.list=[t];st.spurTr.push(t)}
+  for(const L of LINES){const n=isOpen(e0)?target(L,e0):0;for(let k=0;k<n;k++){let u=k*L.Lp/n+rnd(0,40);for(const z of L.zones)if(inZone(z,L,u)||inZone(z,L,u-MAXTL))u=z.u0+z.len+5;const t=take(L);if(!t)break;toLoop(t,u);t.v=12;t.load=Math.round(rnd(60,300))}
+    if(!isOpen(e0)){for(const z of L.zones.filter(z=>z.cap>1)){for(let v=0;v<z.cap-1;v++){const sg=L.segs.find(s=>s.kind===(z.term===0?'in0':'in1'));const t=take(L);if(!t||!sg)break;toLoop(t,sg.u0+sg.len);t.state='park';t.var=v;t.zres=z.id}}}}
   for(const t of st.depotTr)t.slot=-1;for(const t of st.depotTr)t.slot=freeSlot();
   st.warm=true;while(st.epoch<now)step(0.5);st.warm=false;st.trains.forEach(t=>t.delay=0)}
 
@@ -1834,7 +1835,18 @@ function drawCab(){if(!CAB_READY||!CAB.open||!CAB.cv)return;const cv=CAB.cv,g=CA
   const W3=(i,off,h)=>{const n=nrm(i);const p=[P[i][0]+n[0]*off,P[i][1]+n[1]*off];const rx=p[0]-C[0],ry=p[1]-C[1];return[rx*f0[0]+ry*f0[1],rx*R[0]+ry*R[1],h]};
   const pr=q=>{const z=Math.max(NEAR*0.999,q[0]);return[cx+F*q[1]/z,hor+F*(eye-q[2])/z,z]};
   const open=t.where==='path'&&t.pth&&/dep|L\din/.test(t.pth.kind)?false:false;
-  const kind=P.map((p,i)=>{const n=nrm(i);const L4=[p[0]+n[0]*4,p[1]+n[1]*4],R4=[p[0]-n[0]*4,p[1]-n[1]*4];const pl=platAt(L4)||platAt([p[0]+n[0]*6,p[1]+n[1]*6]),pr_=platAt(R4)||platAt([p[0]-n[0]*6,p[1]-n[1]*6]);if(pl||pr_)return{st:true,l:!!pl,r:!!pr_,nm:pl||pr_};if(nearBridge(p))return{br:true};if(nearSwitch(p))return{ch:true};return{tun:true}});
+  const kind=P.map((p,i)=>{const n=nrm(i);const L4=[p[0]+n[0]*4,p[1]+n[1]*4],R4=[p[0]-n[0]*4,p[1]-n[1]*4];const pl=platAt(L4)||platAt([p[0]+n[0]*6,p[1]+n[1]*6]),pr_=platAt(R4)||platAt([p[0]-n[0]*6,p[1]-n[1]*6]);if(pl||pr_)return{st:true,l:!!pl,r:!!pr_,nm:pl||pr_};if(nearBridge(p))return{br:true};return{tun:true}});
+  // камеры съездов: прямоугольные выработки открытого способа, ровно по ширине путей, которые в них сходятся
+  {if(!TEX.chunks)texInit();const myL0=t.L&&t.L.id;const grid=new Map();const gk=(x,y)=>x+','+y;
+   for(const c of TEX.chunks){if(c.b[2]<C[0]-280||c.b[0]>C[0]+280||c.b[3]<C[1]-280||c.b[1]>C[1]+280)continue;if(c.d.t==='M'&&myL0&&c.d.l&&c.d.l!==myL0)continue;for(const q of c.p){const k=gk(Math.floor(q[0]/6),Math.floor(q[1]/6));let a=grid.get(k);if(!a)grid.set(k,a=[]);a.push(q)}}
+   const side=P.map((p,i)=>{if(kind[i].st||kind[i].br||!nearSwitchR(p,90))return null;const n=nrm(i);const tx=n[1],ty=-n[0];let l=0,r=0;const gx=Math.floor(p[0]/6),gy=Math.floor(p[1]/6);
+     for(let a=-2;a<=2;a++)for(let b=-2;b<=2;b++){const arr=grid.get(gk(gx+a,gy+b));if(!arr)continue;for(const q of arr){const dx=q[0]-p[0],dy=q[1]-p[1];if(Math.abs(dx*tx+dy*ty)>1.2)continue;const la=dx*n[0]+dy*n[1];if(Math.abs(la)<1.1||Math.abs(la)>6.2)continue;if(Math.abs(q[2]*n[0]+q[3]*n[1])<0.8)continue;if(la>0)l=Math.max(l,la);else r=Math.max(r,-la)}}
+     return l||r?{l,r}:null});
+   // участки камеры: подряд идущие выборки с боковым путём, плюс ~10 м назад (остряки)
+   const on=side.map(x=>!!x);for(let i=0;i<P.length;i++)if(side[i]&&(i===0||!side[i-1])){for(let j=i-1;j>=0&&N[i]-N[j]<=10&&!kind[j].st&&!kind[j].br;j--)on[j]=true}
+   for(let i=0;i<P.length;){if(!on[i]){i++;continue}let j=i;let l=0,r=0;while(j<P.length&&on[j]){if(side[j]){l=Math.max(l,side[j].l);r=Math.max(r,side[j].r)}j++}
+     if(N[j-1]-N[i]>=3){const box={wl:l?l+2.4:2.4,wr:r?r+2.4:2.4};for(let k=i;k<j;k++)kind[k]={ch:true,box,sd:side[k]}}i=j}}
+
   const fog=z=>Math.max(0,Math.min(1,1-z/220));const headL=z=>Math.max(0,0.22*(1-z/45));const sh=(c,k)=>`rgb(${Math.round(c[0]*k)},${Math.round(c[1]*k)},${Math.round(c[2]*k)})`;
   // от дальнего к ближнему
   for(let i=P.length-2;i>=0;i--){const k=kind[i],z0=N[i],k2=kind[i+1];const lt=fog(z0);
@@ -1864,15 +1876,20 @@ function drawCab(){if(!CAB_READY||!CAB.open||!CAB.cv)return;const cv=CAB.cv,g=CA
         if(S_.cols&&z0>2&&cross(i,S_.step||6)){for(const cxo of S_.cols){const sx=sd*cxo;if(Math.abs(sx)>=far)continue;const a_=pr(W3(i,sx,1.1)),b_=pr(W3(i,sx,hc+(ha-hc)*Math.max(0,1-Math.abs(sx-G_.ax)/far)));const wpx=Math.max(1,F*(S_.cw||0.8)/z0);g.fillStyle=sh(S_.col,0.3+0.7*lt);g.fillRect(a_[0]-wpx/2,b_[1],wpx,a_[1]-b_[1]);g.fillStyle=sh(S_.col,0.18+0.4*lt);g.fillRect(a_[0]-wpx/2,b_[1],wpx*0.25,a_[1]-b_[1])}}}
       // светильники
       if(z0>1.5&&cross(i,S_.lstep||5)){for(const lx0 of S_.lamps){const lx=G_.ax+lx0;const lp=pr(W3(i,lx,(Math.abs(lx-G_.ax)<0.01?ha:hc+(ha-hc)*(1-Math.abs(lx-G_.ax)/Math.max(wl,wr)))-0.08));const ww=F*(S_.lw||1.6)/z0;g.fillStyle=`rgba(255,250,228,${0.45+0.55*lt})`;g.fillRect(lp[0]-ww/2,lp[1]-1,ww,Math.max(1.5,F*0.12/z0))}}
-    }else if(k.ch){// камера съездов: широкая прямоугольная выработка со стрелками
-      const L_=0.12+0.5*lt+headL(z0);const CW=6.8,CH=5.4;
-      if(k2&&k2.tun&&N[i+1]>NEAR){const V=[W3(i+1,CW,-0.3),W3(i+1,CW,CH),W3(i+1,-CW,CH),W3(i+1,-CW,-0.3)].map(pr);g.beginPath();V.forEach((q,k_)=>k_?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();const c=pr(W3(i+1,0,1.75));const rr=F*2.55/Math.max(NEAR,N[i+1]);g.moveTo(c[0]+rr,c[1]);g.arc(c[0],c[1],rr,0,Math.PI*2);g.fillStyle=sh([112,110,104],0.12+0.5*fog(N[i+1]));g.fill('evenodd')}
-      quad(W3(i+1,CW,-0.3),W3(i+1,CW,CH),W3(i,CW,CH),W3(i,CW,-0.3),sh([118,116,110],L_));
-      quad(W3(i+1,-CW,-0.3),W3(i+1,-CW,CH),W3(i,-CW,CH),W3(i,-CW,-0.3),sh([112,110,104],L_));
-      quad(W3(i+1,CW,CH),W3(i+1,-CW,CH),W3(i,-CW,CH),W3(i,CW,CH),sh([96,95,92],L_*0.9));
-      quad(W3(i+1,CW,-0.3),W3(i+1,-CW,-0.3),W3(i,-CW,-0.3),W3(i,CW,-0.3),sh([84,82,78],L_));
-      if(z0<90&&z0>1.5&&cross(i,3)){for(const sx of[CW-0.02,-CW+0.02]){const a=pr(W3(i,sx,-0.3)),b=pr(W3(i,sx,CH));g.strokeStyle=sh([70,70,68],0.3+0.5*lt);g.lineWidth=Math.min(2,Math.max(0.5,F*0.03/z0));g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke()}}
-      if(cross(i,8)&&z0>2.5){for(const lx of[-3,3]){const q=pr(W3(i,lx,CH-0.1));const rr=Math.min(Hc*0.01,Math.max(1,F*0.1/z0));g.fillStyle=`rgba(255,236,190,${0.35+0.6*lt})`;g.fillRect(q[0]-rr*2,q[1]-rr*0.5,rr*4,rr)}}
+    }else if(k.ch){// камера съездов: прямоугольная коробка открытого способа, по ширине путей
+      const L_=0.12+0.5*lt+headL(z0);const CL=k.box.wl,CR=k.box.wr,CH=5.0;
+      if(k2&&!k2.ch&&N[i+1]>NEAR){// торцевая стена с порталами круглых тоннелей
+        const V=[W3(i+1,CL,-0.3),W3(i+1,CL,CH),W3(i+1,-CR,CH),W3(i+1,-CR,-0.3)].map(pr);g.beginPath();V.forEach((q,k_)=>k_?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]));g.closePath();
+        const holes=[0];const sd=k.sd||{};if(sd.l&&sd.l>3)holes.push(sd.l);if(sd.r&&sd.r>3)holes.push(-sd.r);
+        for(const hx of holes){const c=pr(W3(i+1,hx,1.75));const rr=F*2.55/Math.max(NEAR,N[i+1]);g.moveTo(c[0]+rr,c[1]);g.arc(c[0],c[1],rr,0,Math.PI*2)}
+        g.fillStyle=sh([112,110,104],0.12+0.5*fog(N[i+1]));g.fill('evenodd')}
+      quad(W3(i+1,CL,-0.3),W3(i+1,CL,CH),W3(i,CL,CH),W3(i,CL,-0.3),sh([118,116,110],L_));
+      quad(W3(i+1,-CR,-0.3),W3(i+1,-CR,CH),W3(i,-CR,CH),W3(i,-CR,-0.3),sh([112,110,104],L_));
+      quad(W3(i+1,CL,CH),W3(i+1,-CR,CH),W3(i,-CR,CH),W3(i,CL,CH),sh([96,95,92],L_*0.9));
+      quad(W3(i+1,CL,-0.3),W3(i+1,-CR,-0.3),W3(i,-CR,-0.3),W3(i,CL,-0.3),sh([84,82,78],L_));
+      // швы между блоками стен и балки перекрытия
+      if(z0<90&&z0>1.5&&cross(i,6)){g.strokeStyle=sh([70,70,68],0.3+0.5*lt);g.lineWidth=Math.min(2,Math.max(0.5,F*0.03/z0));g.beginPath();for(const sx of[CL-0.02,-CR+0.02]){const a=pr(W3(i,sx,-0.3)),b=pr(W3(i,sx,CH));g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1])}const c1=pr(W3(i,CL,CH-0.02)),c2=pr(W3(i,-CR,CH-0.02));g.moveTo(c1[0],c1[1]);g.lineTo(c2[0],c2[1]);g.stroke()}
+      if(cross(i,8)&&z0>2.5){for(const lx of[(CL-CR)/2]){const q=pr(W3(i,lx,CH-0.1));const rr=Math.min(Hc*0.01,Math.max(1,F*0.1/z0));g.fillStyle=`rgba(255,236,190,${0.35+0.6*lt})`;g.fillRect(q[0]-rr*2,q[1]-rr*0.5,rr*4,rr)}}
     }else if(k.br){// закрытая галерея метромоста
       quad(W3(i+1,2.9,0),W3(i+1,2.9,4.6),W3(i,2.9,4.6),W3(i,2.9,0),sh([150,158,166],0.3+0.6*lt));
       quad(W3(i+1,-2.9,0),W3(i+1,-2.9,4.6),W3(i,-2.9,4.6),W3(i,-2.9,0),sh([150,158,166],0.3+0.6*lt));
@@ -1897,7 +1914,7 @@ function drawCab(){if(!CAB_READY||!CAB.open||!CAB.cv)return;const cv=CAB.cv,g=CA
   {if(!TEX.chunks)texInit();const near=[];for(const c of TEX.chunks){if(c.b[2]<C[0]-270||c.b[0]>C[0]+270||c.b[3]<C[1]-270||c.b[1]>C[1]+270)continue;near.push(c)}
    const camP=(x,y,h)=>{const rx=x-C[0],ry=y-C[1];return[rx*f0[0]+ry*f0[1],rx*R[0]+ry*R[1],h]};
    const idxOf=z=>{let lo=0,hi=N.length-1;while(lo<hi){const m=(lo+hi)>>1;if(N[m]<z)lo=m+1;else hi=m}return lo};
-   const openAt=(z,x)=>{if(z>N[N.length-1]+1)return false;const k=kind[idxOf(z)];if(!k)return false;if(k.st||k.ch)return Math.abs(x)<(k.ch?6.6:9.3);if(k.br)return Math.abs(x)<2.8;return Math.abs(x)<2.2};
+   const openAt=(z,x)=>{if(z>N[N.length-1]+1)return false;const k=kind[idxOf(z)];if(!k)return false;if(k.ch)return x<k.box.wl-0.3&&x>-k.box.wr+0.3;if(k.st)return Math.abs(x)<9.3;if(k.br)return Math.abs(x)<2.8;return Math.abs(x)<2.2};
    g.lineCap='round';
    const myL=t.L&&t.L.id;for(const c of near){if(c.d.t==='M'&&myL&&c.d.l&&c.d.l!==myL)continue;const pts=c.p;for(let j=0;j<pts.length-1;j++){const q=pts[j],q2=pts[j+1];if(Math.abs(q[2]*R[0]+q[3]*R[1])<0.6)continue;const a0=camP(q[0],q[1],0);if(a0[0]<NEAR||a0[0]>250)continue;if(!openAt(a0[0],a0[1]))continue;const lt2=fog(a0[0]);
      if(a0[0]<40&&j%1===0){const s1=camP(q[0]+q[2]*1.25,q[1]+q[3]*1.25,0.02),s2=camP(q[0]-q[2]*1.25,q[1]-q[3]*1.25,0.02);const sg=segNear(s1,s2);if(sg){const A_=pr(sg[0]),B_=pr(sg[1]);g.strokeStyle=sh([105,98,90],0.3+0.55*lt2);g.lineWidth=Math.max(1,Math.min(F*0.04,F*0.16/a0[0]));g.beginPath();g.moveTo(A_[0],A_[1]);g.lineTo(B_[0],B_[1]);g.stroke()}}
@@ -1950,6 +1967,7 @@ const STY={'Заельцовская':{wall:[236,234,228],wall2:[236,234,228],fl
 function stSty(n){return Object.assign({},STY0,STY[n]||{})}
 function stGeom(k){const S_=stSty(k.nm);const wl=k.l?9.5:2.3,wr=k.r?9.5:2.3;const vault=S_.v==='vault';const hc=k.l||k.r?(vault?4.2:4.8):4.2;const ha=k.l||k.r?(vault?7.2:4.9):4.3;const ax=k.l&&!k.r?wl*0.55:k.r&&!k.l?-wr*0.55:0;return{wl,wr,hc,ha,ax}}
 
+function nearSwitchR(p,R){for(const S of SW){if(Math.abs(S.x-p[0])<R&&Math.abs(S.y-p[1])<R&&Math.hypot(S.x-p[0],S.y-p[1])<R)return true}return false}
 function nearSwitch(p){for(const S of SW){if(Math.abs(S.x-p[0])<45&&Math.abs(S.y-p[1])<45&&Math.hypot(S.x-p[0],S.y-p[1])<42)return true}return false}
 
 /* ================= ЦИКЛ ================= */
@@ -1960,11 +1978,13 @@ $('#freq').onchange=e=>{st.freq=+e.target.value};
 $('#evMake').onclick=()=>{if(!isOpen(st.epoch)){toast('Метро закрыто — ночью ситуаций нет');return}const o=makeEvent($('#evType').value);if(!o){toast('Сейчас для этой ситуации нет подходящего места, попробуйте через минуту');return}
   toast(EVT[o.type].t+': '+o.place);const p=incPos(o);if(p){cam.x=p[0];cam.y=p[1];cam.z=Math.max(cam.z,1)}};
 let last=performance.now(),lastUI=0;
-function frame(now){const rdt=Math.min(.25,(now-last)/1000);last=now;
+function frame(now){try{frame0(now);FRN=0}catch(er){FRERR(er)}requestAnimationFrame(frame)}
+let FRN=0,FRT=0;function FRERR(er){FRN++;try{console.error(er)}catch(x){}if(FRN>=20){FRN=0;try{init(st.live?Date.now()/1000:st.epoch)}catch(x){}}}
+function frame0(now){const rdt=Math.min(.25,(now-last)/1000);last=now;
   if(!st.paused){if(st.live){const tgt=Date.now()/1000;let left=tgt-st.epoch;if(left>120)init(tgt);else while(left>0){const h=Math.min(.25,left);step(h);left-=h}}else{let left=rdt*st.speed;while(left>0){const h=Math.min(.25,left);step(h);left-=h}}}
-  PAX.tick();draw();micLevel();if(now-lastUI>300){lastUI=now;renderTop();renderLines();renderSel();renderFeed();renderRadio();renderSwPanel();renderShift()}requestAnimationFrame(frame)}
+  PAX.tick();draw();micLevel();if(now-lastUI>300){lastUI=now;renderTop();renderLines();renderSel();renderFeed();renderRadio();renderSwPanel();renderShift()}}
 init(Date.now()/1000);shiftReset();rSp();renderTop();renderLines();renderFeed();renderRadio();renderSwPanel();requestAnimationFrame(frame);
-window.__st=st;window.__sim={along,SW,TRK,TUP,RADIO,PAX,STN,sendDest,destOpts,toggleSwitch,buildDep,buildDepOld,YG,startDep,swPassPoly,SPURS,GEO,polyAt,upos,buildGraph,routeForward,md,dispatchRadio,incPos,draw,renderAll:()=>{renderTop();renderLines();renderSel();renderFeed()},resize,setView:v=>{view=v;rView()},step,makeEvent,init,LINES,cam,fit,SPURS,doCmd,findTr,allTrains,buildPath,scr:t=>{const q=along(t)(t.tl/2,t.tl/2+0.5)[0];return[SX(q[0]),SY(q[1])]},headW:t=>{const p=along(t)(0,0.5);return p[p.length-1]}};
+window.__st=st;window.__sim={along,SW,TRK,TUP,RADIO,PAX,STN,sendDest,destOpts,toggleSwitch,buildDep,buildDepOld,YG,startDep,swPassPoly,SPURS,GEO,polyAt,upos,buildGraph,routeForward,md,dispatchRadio,incPos,draw,renderAll:()=>{renderTop();renderLines();renderSel();renderFeed()},resize,setView:v=>{view=v;rView()},step,makeEvent,init,setStClosed,setIV:o=>{IVO=o||{}},getIV:()=>IVO,LINES,cam,fit,SPURS,doCmd,findTr,allTrains,buildPath,scr:t=>{const q=along(t)(t.tl/2,t.tl/2+0.5)[0];return[SX(q[0]),SY(q[1])]},headW:t=>{const p=along(t)(0,0.5);return p[p.length-1]}};
 })();
 </script>
 </body>
