@@ -35,6 +35,7 @@ h1{margin:0;font-size:clamp(19px,2.4vw,25px);line-height:1.15;text-wrap:balance}
 .btn{all:unset;cursor:pointer;padding:5px 12px;border:1px solid var(--rule);font-weight:700;font-size:13px;background:#fff}
 button:focus-visible,.btn:focus-visible,select:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
 .main{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,400px);gap:12px;align-items:start}
+@media (min-width:1001px){.main>.side{position:sticky;top:8px;max-height:calc(100vh - 16px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px;scrollbar-width:thin;scrollbar-gutter:stable}.main>.side::-webkit-scrollbar{width:8px}.main>.side::-webkit-scrollbar-thumb{background:#bbb;border-radius:4px}}
 @media (max-width:1000px){.main{grid-template-columns:minmax(0,1fr)}}
 .box{border:1px solid var(--rule);background:#fff;min-width:0}
 .box h2{margin:0;font-size:15px;font-weight:700;padding:7px 12px;border-bottom:1px solid var(--rule);display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
@@ -260,6 +261,9 @@ const WASH_SLOTS=[8],REPAIR_SLOTS=[28,29,30];
 // не для отстоя: ходовые, вытяжные и соединительные пути вне корпусов (в OSM без пометки крытого пути)
 const NOPARK_SLOTS=[0,11,25,26,27,31,32,33,34];
 (function patchGeo(){const D=GEO.draw;
+ /* Речной вокзал: в OSM нет платформ — две береговые платформы по 102 м (пути в центре) */
+ if(!GEO.PL.some(p=>p.name==='Речной вокзал')){GEO.PL.push({name:'Речной вокзал',p:[[1205.0, 1189.9], [1136.9, 1265.9], [1133.2, 1262.5], [1201.3, 1186.6], [1205.0, 1189.9]]},{name:'Речной вокзал',p:[[1209.9, 1194.2], [1141.8, 1270.1], [1145.5, 1273.5], [1213.6, 1197.5], [1209.9, 1194.2]]})}
+
   // «Студенческая»: недостающий съезд 3-го пути на II путь (перекрёстный съезд, как на 3-м фото)
   const s3=D.find(d=>d.n==='3 путь станции Студенческая');if(s3)s3.p.splice(2,0,[-969,3534.1]);
   D.push({t:'C',l:1,f:'t',n:'Съезд 3 пути станции Студенческая',p:[[-948,3517],[-958.5,3525.5],[-969,3534.1]]});
