@@ -1233,8 +1233,8 @@ function speak(txt,disp,cb){if(!speakable()){if(cb)cb();return}try{const u=new S
   u.onstart=()=>{RADIO.rx=1};u.onend=()=>{RADIO.rx=0;if(cb)cb()};u.onerror=()=>{RADIO.rx=0;if(cb)cb()};speechSynthesis.speak(u)}catch(e){if(cb)cb()}}
 // очередь радиообмена: сначала говорит диспетчер, потом отвечает машинист — и только тогда поезд выполняет распоряжение
 const RQ=[];let rqBusy=false,rqGen=0;
-function rq(it){RQ.push(it);if(!rqBusy)rqNext()}
-function rqNext(){const it=RQ.shift();if(!it){rqBusy=false;return}rqBusy=true;const my=++rqGen;
+function rq(it){RQ.push(it);if(!rqBusy&&!RADIO.tx)rqNext()}
+function rqNext(){if(RADIO.tx){rqBusy=false;return}const it=RQ.shift();if(!it){rqBusy=false;return}rqBusy=true;const my=++rqGen;
   if(it.drv){SND.sq();RADIO.add(it.name||(it.t?`Машинист поезда №${it.t.id}`:'Поезда'),it.txt,'drv');if(it.act){RADIO.mute=true;try{it.act()}catch(e){console.error(e)}RADIO.mute=false;cmdsHtml='';renderSel()}}
   else RADIO.add(it.name||'Диспетчер',it.txt,'me');
   let fin=false;const done=()=>{if(fin||my!==rqGen)return;fin=true;RADIO.rx=0;if(it.drv)SND.rog();setTimeout(rqNext,it.drv?300:500)};
@@ -1256,7 +1256,7 @@ function parseCmd(s){s=(s||'').toLowerCase().replace(/ё/g,'е').replace(/без
   if(/разреша|следуй|следуйте|продолжа|отправля|поехал|трогай|вперед|можно ехать|давай|езжай|двигай/.test(s))return{k:'go'};
   if(/что.{0,15}(случ|произош|у вас|там)|доклад|доложи|причин|обстановк|как дела|слыш|на связи|ответ|где (ты|вы|наход)/.test(s))return{k:'report'};return{k:'ack'}}
 const NUMW={'один':1,'перв':1,'два':2,'втор':2,'три':3,'трет':3,'четыр':4,'четвер':4,'пят':5,'шест':6,'сем':7,'седьм':7,'восьм':8,'восем':8,'девят':9,'десят':10,'одиннадц':11,'двенадц':12,'тринадц':13,'четырнадц':14,'пятнадц':15,'шестнадц':16,'семнадц':17,'восемнадц':18,'девятнадц':19,'двадцат':20};
-function wordNum(w){w=w.toLowerCase().replace(/ё/g,'е');let best=0,bl=0;for(const[k,v]of Object.entries(NUMW))if(w.startsWith(k)&&k.length>bl){best=v;bl=k.length}return best}
+function wordNum(w){w=w.toLowerCase().replace(/ё/g,'е');const nn=typeof numOf==='function'?numOf(w):0;if(nn)return nn;if(/^(тридцат|сорок|пятьдесят|шестьдесят|семьдесят|восемьдесят|девяносто|сто|вторичн|трет[ье]й?\s)/.test(w))return 0;let best=0,bl=0;for(const[k,v]of Object.entries(NUMW))if(w.startsWith(k)&&k.length>bl){best=v;bl=k.length}return best}
 // кому адресовано: номер маршрута/поезда в начале или в любом месте фразы
 
 // числа словами → цифрами (голос на телефоне часто даёт «тупик два», «маршрут семь»)
@@ -1267,8 +1267,8 @@ function normNums(txt){const ws=txt.split(/(\s+)/);const out=[];for(let i=0;i<ws
   if(n===20&&ws[i+2]){const m2=ws[i+2].match(/^([А-Яа-яЁё]+)([.,!?;:]*)$/);const u=m2?numOf(m2[1]):0;if(u>0&&u<10){out.push(String(20+u)+m2[2]);i+=2;continue}}
   out.push(n?String(n)+m[2]:w)}return out.join('')}
 function addressOf(txt){const s=txt.toLowerCase().replace(/ё/g,'е');
-  let m=s.match(/(?:маршрут\S*|поезд\S*|состав\S*)\s*(?:номер|№)?\s*(\d{1,2})(?!\d)/)||s.match(/№\s*(\d{1,2})(?!\d)/);
-  if(m)return{id:+m[1],rest:txt.replace(new RegExp(m[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),'').replace(/^[\s,.:;!-]+/,'')};
+  let m=s.match(/(?:маршрут\S*|поезд\S*|состав\S*)\s*(?:номер|№)?\s*(\d{1,2})(?!\d)/)||s.match(/№\s*(\d{1,2})(?!\d)/)||s.match(/(?:^|\s)(\d{1,2})(?:-?[а-я]{1,3})?[\s,]+(?:маршрут|поезд|состав)\S*/)||s.match(/^(\d{1,2})(?:-?[а-я]{1,3})?(?=[\s,.:!])(?!\s*(?:км|мин|сек))/);
+  if(m){const after=txt.slice(m.index+m[0].length).replace(/^[\s,.:;!-]+/,'');return{id:+m[1],rest:/[а-яa-z]{3}/i.test(after)?after:txt.replace(new RegExp(m[0].replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),'').replace(/^[\s,.:;!-]+/,'')}}
   m=s.match(/(?:маршрут\S*|поезд\S*|состав\S*)\s*(?:номер\s*)?([а-я]+(?:\s+[а-я]+)?)/);
   if(m){const ws=m[1].split(/\s+/);let n=wordNum(ws[0]);if(n===20&&ws[1])n+=wordNum(ws[1])%10;if(n)return{id:n,rest:txt}}
   m=s.match(/([а-я]+)\s+(?:маршрут|поезд|состав)/);if(m){const n=wordNum(m[1]);if(n)return{id:n,rest:txt}}
@@ -1278,11 +1278,11 @@ function stationIn(L,txt){const s=txt.toLowerCase().replace(/ё/g,'е');let best
   for(let i=0;i<L.st.length;i++){const words=L.st[i].toLowerCase().replace(/ё/g,'е').replace(/[«»]/g,'').split(/[\s-]+/);const stem=words.map(w=>w.length>5?w.slice(0,w.length-2):w.length>3?w.slice(0,w.length-1):w);
     if(stem.every(w=>s.includes(w))){const l=stem.join('').length;if(l>bl){bl=l;best=i}}}return best}
 function chanTrain(){const id=+RADIO.ch;return id?findTr(id):null}
-function dispatchRadio(text,viaVoice){let txt=normNums((text||'').trim());const all=/(^|\s)(всем|все)\s+поезд/i.test(txt);const ad=txt&&!all?addressOf(txt):null;let t=all?null:chanTrain();if(all){RADIO.ch='';chOpts=''}
+function dispatchRadio(text,viaVoice){let txt=normNums((text||'').trim());const ad=txt?addressOf(txt):null;const all=!ad&&/(^|\s)(всем|все)\s+поезд/i.test(txt);let t=all?null:chanTrain();if(all){RADIO.ch='';chOpts=''}
   if(ad){const tt=findTr(ad.id);if(!tt){rq({txt,silent:viaVoice});driverSay(null,`Поезд №${ad.id} на линии не найден, диспетчер.`);return}t=tt;RADIO.ch=String(tt.id);chOpts='';st.sel={kind:'tr',id:tt.id};renderSel()}
-  const pend=RADIO.calls.find(c=>!c.done&&(t?c.tid===t.id:true));if(pend)callDone(pend,'me');callsHtml=null;
+  const pend=t?RADIO.calls.find(c=>!c.done&&c.tid===t.id):null;if(pend)callDone(pend,'me');callsHtml=null;
   rq({txt:(ad||all?'':t?`Поезд №${t.id}, `:'Всем поездам: ')+(txt||'(голосом в эфир)'),silent:viaVoice||!txt});
-  let cmd=parseCmd(txt);if(!txt)cmd={k:pend?'report':'ack'};cmd.txt=txt;if(/следующ|ближайш/i.test(txt))cmd.next=true;
+  let cmd=parseCmd(ad&&ad.rest&&ad.rest.trim()?ad.rest:txt);if(!txt)cmd={k:pend?'report':'ack'};cmd.txt=txt;if(/следующ|ближайш/i.test(txt))cmd.next=true;
   {const low=txt.toLowerCase().replace(/ё/g,'е');const n=(low.match(/(?:тупик\S*|путь|пути)\D{0,6}(\d+)/)||[])[1];
    if(/высад/.test(low)&&(n||/депо/.test(low))){cmd={k:'dropThen',txt,n:n?+n:null,depot:/депо/.test(low)&&!/тупик/.test(low),track:/депо/.test(low)&&n!=null}}}if(t&&t.where==='loop'){const si=stationIn(t.L,txt);if(si!=null)cmd.si=si;if(cmd.k==='drop'&&/депо/i.test(txt))cmd.depot=true}
   if(!t){if(cmd.k==='stop'||cmd.k==='estop')driverSay(null,'Поезда вас поняли, останавливаемся.',()=>{for(const x of allTrains()){x.dHold=true;if(x.where==='path'){x.pHold=true;x.pth.wait=1e12}}});
@@ -1343,17 +1343,48 @@ function driverDo(t,cmd,pend){const id=t.id;const L=t.L;let r='',act=null;const 
   default:r=pend&&pend.type==='emg'?reportText(t):(cmd.k==='ack'&&RADIO.lastRaw?'Не понял распоряжение, повторите.'+P:`Машинист поезда №${id} на связи.`)}
   return{r,act}}
 // передача: кнопка или клавиша Q
-async function pttDown(){if(RADIO.tx)return;SND.unlock();RADIO.tx=true;RADIO.srOn=false;RADIO.heard='';RADIO.base='';RADIO.cur='';SND.sq();renderRadio();
-  if(!RADIO.ch){const p=RADIO.calls.find(c=>!c.done&&c.tid);if(p){RADIO.ch=String(p.tid);chOpts=''}}
-  if(SR&&RADIO.srOk&&RADIO.tx){try{const r=new SR();r.lang='ru-RU';r.interimResults=true;r.continuous=true;r.maxAlternatives=1;RADIO.base=RADIO.base||'';r.onresult=ev=>{let acc='';for(const x of ev.results){const tr=x[0].transcript.trim();if(!tr)continue;const a=acc.toLowerCase(),b=tr.toLowerCase();if(!acc||b.startsWith(a))acc=tr;else if(b.length>=5&&a.endsWith(b))continue;else acc+=' '+tr}RADIO.cur=acc;RADIO.heard=(RADIO.base+' '+acc).trim();$('#heard').textContent=RADIO.heard};r.onend=()=>{if(RADIO.tx&&RADIO.rec===r){RADIO.base=RADIO.heard;RADIO.cur='';try{r.start()}catch(e){}}};
-      r.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed'||ev.error==='network'){RADIO.srOk=false;toast(ev.error==='network'?'Распознавание речи работает только с интернетом — без сети отдавайте распоряжения текстом или кнопками':'Распознавание речи недоступно — машинист ответит по кнопкам или тексту')}};r.onstart=()=>{if(!RADIO.srOn){RADIO.srOn=true;try{SND.sq()}catch(e){}}renderRadio()};r.start();RADIO.rec=r}catch(e){}}
-  renderRadio();
-  // индикатор уровня микрофона — только на компьютере: на телефоне второй захват микрофона мешает распознаванию речи
-  if(!TOUCH){try{if(!RADIO.mic&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){RADIO.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});const ac=SND.ctx();if(ac){const src=ac.createMediaStreamSource(RADIO.mic);RADIO.an=ac.createAnalyser();RADIO.an.fftSize=512;src.connect(RADIO.an)}}RADIO.micErr=false}
-  catch(e){RADIO.micErr=true}}
+// ---- передача голосом (кнопка «Говорить» / клавиша Q) ----
+const IS_ANDROID=/Android/i.test(navigator.userAgent),IS_YA=/YaBrowser/i.test(navigator.userAgent);
+function joinHeard(a,b){a=(a||'').trim();b=(b||'').trim();if(!a)return b;if(!b)return a;const A=a.toLowerCase(),B=b.toLowerCase();if(B.startsWith(A))return b;if(A.endsWith(B)||(B.length>=5&&A.includes(B)))return a;return a+' '+b}
+function srHint(err){if(location.protocol==='file:'&&err&&err!=='no-speech'&&err!=='aborted')return'Голос не работает в файле, открытом из папки: браузер не даёт ему микрофон. Откройте игру на сайте novosibirsk-metro.github.io/dispetcherskaya — или отдавайте распоряжения текстом.';
+  if(IS_YA)return'Яндекс Браузер не распознаёт речь для сайтов. Голосом — в Google Chrome или Microsoft Edge; здесь — текстом или кнопками.';
+  if(err==='not-allowed'||err==='service-not-allowed')return'Нет доступа к микрофону: разрешите микрофон для сайта (значок слева от адреса) и попробуйте снова.';
+  if(err==='network')return'Нет связи с сервисом распознавания речи (нужен интернет; мешать могут VPN и блокировщики рекламы). Повторите или напишите текстом.';
+  if(err==='language-not-supported')return'Браузер не распознаёт русскую речь. Голосом — в Google Chrome; здесь — текстом.';
+  if(err==='audio-capture')return'Микрофон не найден или занят другой программой.';
+  return'Не расслышал распоряжение — нажмите «Говорить», дождитесь второго сигнала и скажите, например: «Маршрут 7, доложите обстановку».'}
+RADIO.netFails=0;
+function srStart(S){let r;try{r=new SR()}catch(e){S.err='start';return false}S.r=r;r.lang='ru-RU';r.interimResults=true;r.maxAlternatives=1;r.continuous=!IS_ANDROID;
+  S.acc='';S.last='';
+  r.onstart=()=>{if(S.closed)return};
+  r.onaudiostart=()=>{if(S.closed)return;if(!RADIO.srOn){RADIO.srOn=true;try{SND.sq()}catch(e){}}renderRadio()};
+  r.onresult=ev=>{if(S.closed)return;let acc='',fin=true;
+    for(let i=0;i<ev.results.length;i++){const x=ev.results[i];const tr=(x[0]&&x[0].transcript||'').trim();if(!tr)continue;
+      if(x.isFinal&&IS_ANDROID&&x[0].confidence===0&&i<ev.results.length-1)continue;if(!x.isFinal)fin=false;acc=joinHeard(acc,tr)}
+    S.acc=acc;S.fin=fin;RADIO.heard=joinHeard(S.base,acc);$('#heard').textContent=RADIO.heard};
+  r.onerror=ev=>{if(S.closed)return;S.err=ev.error};
+  r.onend=()=>{if(S.closed)return;S.base=joinHeard(S.base,S.acc);S.acc='';RADIO.heard=S.base;
+    if(RADIO.tx&&RADIO.sess===S&&!/allowed|network|audio-capture|language/.test(S.err||'')){S.err=null;if(srStart(S)){try{S.r.start();return}catch(e){}}}
+    if(S.onDone)S.onDone()};
+  return true}
+async function pttDown(){if(RADIO.tx)return;SND.unlock();RADIO.tx=true;RADIO.srOn=false;RADIO.heard='';$('#heard').textContent='';
+  // машинист замолкает, пока диспетчер в эфире: иначе микрофон слышит его голос
+  try{if('speechSynthesis'in window)speechSynthesis.cancel()}catch(e){}rqGen++;rqBusy=false;RADIO.rx=0;
+  SND.sq();
+  const S={base:'',acc:'',fin:false,err:null,closed:false};RADIO.sess=S;
+  if(SR&&RADIO.srOk!=='denied'){if(RADIO.mic){try{RADIO.mic.getTracks().forEach(x=>x.stop())}catch(e){}RADIO.mic=null;RADIO.an=null}
+    if(srStart(S)){try{S.r.start()}catch(e){S.err='start'}}}
+  else if(!SR&&!TOUCH){try{if(!RADIO.mic&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia){RADIO.mic=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});const ac=SND.ctx();if(ac){const src=ac.createMediaStreamSource(RADIO.mic);RADIO.an=ac.createAnalyser();RADIO.an.fftSize=512;src.connect(RADIO.an)}}RADIO.micErr=false}catch(e){RADIO.micErr=true}}
   renderRadio()}
-function pttUp(){if(!RADIO.tx)return;RADIO.tx=false;SND.rog();const r=RADIO.rec;RADIO.rec=null;
-  let done=false;const fin=()=>{if(done)return;done=true;const h=(RADIO.heard||'').trim();RADIO.srOn=false;if(!h&&SR&&RADIO.srOk!==false){toast('Не расслышал распоряжение — повторите: нажмите «Говорить», дождитесь сигнала и скажите, например, «Маршрут 7, доложите обстановку». Можно написать текстом.');RADIO.heard='';$('#heard').textContent='';renderRadio();return}if(!h&&!SR){toast('Этот браузер не распознаёт речь — отдавайте распоряжения текстом или кнопками (голосом работает в Chrome и Edge)');}dispatchRadio(h,true);RADIO.heard='';$('#heard').textContent=''};if(r){r.onend=()=>setTimeout(fin,50);try{r.stop()}catch(e){}setTimeout(fin,3000)}else fin();
+function pttUp(){if(!RADIO.tx)return;RADIO.tx=false;SND.rog();const S=RADIO.sess;RADIO.sess=null;
+  let done=false;const fin=timedOut=>{if(done)return;done=true;RADIO.srOn=false;if(S){S.closed=true;try{S.r&&S.r.abort()}catch(e){}}
+    let h=S?joinHeard(S.base,S.acc).trim():'';if(timedOut&&S&&!S.fin&&!addressOf(normNums(h)))h='';
+    RADIO.heard='';$('#heard').textContent='';
+    const err=S&&S.err;if(err==='not-allowed'||err==='service-not-allowed'){if(location.protocol!=='file:')RADIO.srOk='denied'}
+    if(err==='network')RADIO.netFails++;else if(h)RADIO.netFails=0;
+    if(!h){toast(!SR?'Этот браузер не распознаёт речь — отдавайте распоряжения текстом или кнопками (голосом — в Google Chrome или Edge).':srHint(err));renderRadio();if(!rqBusy)rqNext();return}
+    dispatchRadio(h,true);renderRadio();if(!rqBusy)rqNext()};
+  if(S&&S.r){S.onDone=()=>setTimeout(()=>fin(false),60);try{S.r.stop()}catch(e){fin(false)}setTimeout(()=>fin(true),8000)}else fin(false);
   clearTimeout(RADIO.micStop);RADIO.micStop=setTimeout(()=>{if(RADIO.mic&&!RADIO.tx){RADIO.mic.getTracks().forEach(x=>x.stop());RADIO.mic=null;RADIO.an=null}},20000);renderRadio()}
 const typing=el=>el&&(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT'||el.isContentEditable);
 document.addEventListener('keydown',e=>{if(e.code==='KeyQ'&&!e.repeat&&!typing(e.target)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();pttDown()}});
@@ -1372,7 +1403,7 @@ let chOpts='';
 function renderRadio(){const now=performance.now();const pend=RADIO.calls.filter(c=>!c.done);const emg=pend.some(c=>c.type==='emg');const emgAct=activeInc().some(i=>i.sev!=='low');
   const lg=$('#lampG'),lo=$('#lampO');lg.className='lamp g'+(RADIO.tx||RADIO.rx>now||RADIO.rx===1?' on':pend.some(c=>c.type==='norm')?' on blink':'');lo.className='lamp o'+(emg?' on blink':emgAct?' on':'');
   $('#ptt').classList.toggle('tx',RADIO.tx);$('#ptt').setAttribute('aria-pressed',String(RADIO.tx));
-  $('#micNote').textContent=RADIO.tx&&SR&&RADIO.srOk&&!RADIO.srOn?'Включаю распознавание — говорите после второго сигнала':RADIO.tx?(RADIO.micErr&&!SR?'В эфире (микрофон недоступен — разрешите доступ в браузере)':(RADIO.toggle?'В эфире — говорите, затем нажмите кнопку ещё раз':'В эфире — говорите')):RADIO.rx>now||RADIO.rx===1?'Приём: говорит машинист':(TOUCH?'Нажмите «Говорить», скажите распоряжение и нажмите ещё раз':'Нажмите и держите Q или кнопку');
+  $('#micNote').textContent=RADIO.tx&&SR&&RADIO.srOk!=='denied'&&!RADIO.srOn?'Включаю распознавание — говорите после второго сигнала':RADIO.tx?(RADIO.micErr&&!SR?'В эфире (микрофон недоступен — разрешите доступ в браузере)':(RADIO.toggle?'В эфире — говорите, затем нажмите кнопку ещё раз':'В эфире — говорите')):RADIO.rx>now||RADIO.rx===1?'Приём: говорит машинист':(TOUCH?'Нажмите «Говорить», скажите распоряжение и нажмите ещё раз':'Нажмите и держите Q или кнопку');
   const ids=allTrains().map(t=>t.id).sort((a,b)=>a-b);const ok=ids.join(',')+'|'+RADIO.ch;if(ok!==chOpts){chOpts=ok;$('#radioTo').innerHTML=`<option value="">Все поезда (циркулярно)</option>`+ids.map(i=>`<option value="${i}"${String(i)===RADIO.ch?' selected':''}>Поезд №${i}</option>`).join('')}
   const ch=pend.map(c=>`<div class="call ${c.type}"><div><b>${esc(c.from)}</b> · ${fmt(c.t).slice(0,5)}<br>${esc(c.txt)}</div><button data-call="${c.id}">Ответить</button></div>`).join('');if(ch!==callsHtml){callsHtml=ch;$('#rcalls').innerHTML=ch}
   const lh=RADIO.log.slice(0,14).map(m=>`<div class="rl ${m.cls}"><span>${fmt(m.t).slice(0,5)}</span> <b>${esc(m.who)}:</b> ${esc(m.txt)}</div>`).join('')||'<p class="note">Эфир тихий. Вызовы машинистов появятся здесь.</p>';if(lh!==logHtml){logHtml=lh;$('#rlog').innerHTML=lh}
