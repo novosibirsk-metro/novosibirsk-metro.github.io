@@ -448,7 +448,7 @@ const TUP=[];const TLAB=[];
   // главные пути: I — от начальной станции, II — обратно
   for(const L of LINES)for(const s of L.stops){if(s.si==null||s.k==='unload')continue;const pl=platLen(L,s.si);const q=upos(L,s.u-pl*0.5,0);const c=GEO.centers.find(c=>c.name===L.st[s.si]);if(!c)continue;
     const[sg]=segAt(L,s.u);const one=sg.kind==='A'||sg.kind.endsWith('1')&&sg.kind.startsWith('in');const o=nrm2(q[0]-c.x,q[1]-c.y);TLAB.push({x:q[0]+o[0]*7,y:q[1]+o[1]*7,t:one?'I путь':'II путь',k:'main',col:L.col})}
-  for(const q of [[-1330,-3240],[-1272,-3116]])TLAB.push({x:q[0],y:q[1],t:'Вытяжной путь (маневры)',k:'sp'});
+  [[-1318,-3250,'Вытяжной 1'],[-1342,-3262,'Вытяжной 2'],[-1252,-3126,'Вытяжной 3'],[-1300,-3098,'Вытяжной 4']].forEach(([x,y,t])=>TLAB.push({x,y,t,k:'sp'}));
   for(const T of TRK){if(!T.n)continue;const p=T.pts;const d=nrm2(p[0][0]-p[1][0],p[0][1]-p[1][1]);TLAB.push({x:p[0][0]+d[0]*7,y:p[0][1]+d[1]*7,t:String(T.n),k:'dep',n:T.n})}})();
 
 /* ================= НЕШТАТНЫЕ СИТУАЦИИ ================= */
@@ -962,7 +962,12 @@ function ygRoute(fromPt,toPt,tl,prefer){const{nodes,segs,nodeAt}=YG;const A=node
   const chain=[];let kk=goal;while(kk!=null){const p=prev.get(kk);chain.unshift({kk,rev:p.rev});kk=p.pk}
   const legs=[];let cur=[];for(const{kk,rev}of chain){const s=segs[kk>>1],d=(kk&1)?-1:1;if(rev){legs.push(cur);cur=[]}const pts=d>0?s.pts.slice():s.pts.slice().reverse();if(cur.length)pts.shift();cur.push(...pts)}
   legs.push(cur);return legs.filter(l=>l.length>1)}
-function buildDep(i,j,prefer){const tl=97;const legs=ygRoute(TRK[i].pts[0],TRK[j].pts[0],tl,prefer);
+// вытяжные пути используются по очереди — все четыре (оба в треугольнике и оба у соединительной ветви)
+let neckRot=0;
+function viaNeck(legs,n){if(!legs||legs.length<2)return false;const q=legs[0][legs[0].length-1];return Math.hypot(q[0]-n[0],q[1]-n[1])<3}
+function buildDep(i,j,prefer){const tl=97;const pool=prefer||NECKS;
+  for(let k=0;k<pool.length;k++){const n=pool[(neckRot+k)%pool.length];const L=ygRoute(TRK[i].pts[0],TRK[j].pts[0],tl,[n]);if(viaNeck(L,n)){neckRot=(neckRot+k+1)%pool.length;return{kind:'dep',slot:j,from:i,L:null,end:null,legs:L.map(p=>({poly:mkPoly(p),spans:[]})),li:0,s:0,wait:0,neck:n}}}
+  const legs=ygRoute(TRK[i].pts[0],TRK[j].pts[0],tl,prefer);
   if(legs&&legs.length){return{kind:'dep',slot:j,from:i,L:null,end:null,legs:legs.map(p=>({poly:mkPoly(p),spans:[]})),li:0,s:0,wait:0}}
   return buildDepOld(i,j)}
 const WYE=[[-1328,-3253],[-1333,-3257]];
