@@ -560,7 +560,7 @@ function stepTrain(tr,dt){const L=tr.L;
   let dStop=1e9,planned=null;
   for(const s of L.stops){const d=md(s.u-tr.u,L);if(d<0.01&&Math.abs(tr.skipU-tr.u)<2)continue;if(Math.abs(md(s.u-tr.skipU,L))<0.5&&md(tr.u-tr.skipU,L)<5)continue;
     if(skipStop(tr,s,L))continue;if(d<dStop){dStop=d;planned=s}}
-  if(tr.dest&&tr.dest.k==='spur'){const X=tr.dest.X;if(!tr.dest.viaSet){tr.dest.viaSet=true;const bd=Math.max(30,tr.v*tr.v/(2*DEC)+20);if(X.via&&md(X.via.uP-tr.u,L)>bd&&md(X.via.uP-tr.u,L)<md(X.uP-tr.u,L))tr.dest.via=X.via}const uP=spurUP(tr);const d=md(uP-tr.u,L);const sk=(d<0.01&&Math.abs(tr.skipU-tr.u)<2)||(Math.abs(md(uP-tr.skipU,L))<0.5&&md(tr.u-tr.skipU,L)<5);if(!sk&&d<=dStop+0.01){dStop=d;planned={u:uP,k:'spurrev'}}}
+  if(tr.dest&&tr.dest.k==='spur'){const X=tr.dest.X;if(!tr.dest.viaSet){tr.dest.viaSet=true;const bd=Math.max(30,tr.v*tr.v/(2*DEC)+20);if(X.via&&md(X.via.uP-tr.u,L)>bd&&md(X.via.uP-tr.u,L)<md(X.uP-tr.u,L))tr.dest.via=X.via;else if(X.via&&md(tr.u-X.via.uP,L)<X.via.loopLen&&md(X.via.uP+X.via.loopLen-tr.u,L)>tr.v*tr.v/(2*DEC)+8&&tr.state==='run'&&!X.list.some(o=>o!==tr&&o.where==='spur'&&o.sp.leg==='out')){tr.dest.via=X.via;const v0=tr.v,hp=upos(L,tr.u,tr.var);enterSpur(tr);{const R=tr.sp.poly;let bs=tr.sp.s,bd2=1e9;for(let q=tr.tl;q<R.len;q+=0.5){const w=polyAt(R,q);const dd=Math.hypot(w[0]-hp[0],w[1]-hp[1]);if(dd<bd2){bd2=dd;bs=q}}tr.sp.s=Math.min(tr.sp.end-1,bs)}tr.v=Math.min(v0,8);return}}const uP=spurUP(tr);const d=md(uP-tr.u,L);const sk=(d<0.01&&Math.abs(tr.skipU-tr.u)<2)||(Math.abs(md(uP-tr.skipU,L))<0.5&&md(tr.u-tr.skipU,L)<5);if(!sk&&d<=dStop+0.01){dStop=d;planned={u:uP,k:'spurrev'}}}
   let lead=1e9,leadTr=null;
   for(const o of st.trains){if(o===tr||o.L!==L||o.state==='gone')continue;const d=md(o.u-tr.u,L);if(d<=0)continue;const oz=zoneOf(o);if(oz&&oz!==tr.zone)continue;
     if(oz&&tr.zone===oz&&oz.cap>1&&o.var!==tr.var){const[so]=segAt(L,o.u),[sm]=segAt(L,tr.u);if(!(so.kind.startsWith('out')&&sm.kind.startsWith('out')))continue}
@@ -610,7 +610,8 @@ function finishTest(tr){const b=tr.dest.back;tr.dest=null;if(tr.afterRepair){tr.
   if(b&&b.k==='spur'&&spurRoom(b.X,tr)){tr.dest={k:'spur',X:b.X};spurAdd(b.X,tr);toast(`Состав №${tr.id}: обкатка завершена, возвращается в отстой`)}
   else if(b==='line'&&isOpen(st.epoch)){tr.manual=false;toast(`Состав №${tr.id}: обкатка завершена, вернулся в график`)}
   else{tr.withdrawn=true;toast(`Состав №${tr.id}: обкатка завершена, следует в электродепо`)}}
-function enterSpur(tr){const X=tr.dest.X;const via=tr.dest.via;tr.dest=null;tr.spurHold=tr.manual;tr.state='spur';tr.where='spur';tr.zone=null;tr.zres=null;tr.var=-1;tr.load=0;tr.v=0;spurAdd(X,tr);const PR=via?via.R:X.R;const end=PR.len-X.list.filter(o=>o!==tr&&o.where==='spur').reduce((a,o)=>a+o.tl+8,0);tr.sp={X,leg:'in',s:tr.tl,poly:PR,req:null,end,via}}
+function enterSpur(tr){const hp0=tr.where==='loop'?upos(tr.L,tr.u,tr.var):null;enterSpur0(tr);if(hp0&&tr.sp&&tr.sp.via){const R=tr.sp.poly;let bs=tr.sp.s,bd=1e9;for(let q=tr.tl;q<Math.min(R.len,tr.tl+400);q+=0.5){const w=polyAt(R,q);const dd=Math.hypot(w[0]-hp0[0],w[1]-hp0[1]);if(dd<bd){bd=dd;bs=q}}if(bd<6)tr.sp.s=Math.min(tr.sp.end-1,bs)}}
+function enterSpur0(tr){const X=tr.dest.X;const via=tr.dest.via;tr.dest=null;tr.spurHold=tr.manual;tr.state='spur';tr.where='spur';tr.zone=null;tr.zres=null;tr.var=-1;tr.load=0;tr.v=0;spurAdd(X,tr);const PR=via?via.R:X.R;const end=PR.len-X.list.filter(o=>o!==tr&&o.where==='spur').reduce((a,o)=>a+o.tl+8,0);tr.sp={X,leg:'in',s:tr.tl,poly:PR,req:null,end,via}}
 function spanClear(X,except){const a=X.uJ-20;return spanClearR(X.Lr,a,md(X.uP+5-a,X.Lr),except)}
 function stepSpur(t,dt){const sp=t.sp;
   if(sp.leg==='stand'){if(t.standAt!=null&&st.epoch<t.standAt+CABT)return;const X=sp.X;const outer=!X.list.some(o=>o!==t&&o.where==='spur'&&(o.sp.leg!=='stand'||o.sp.s<sp.s));
@@ -886,7 +887,7 @@ function sendDest(t,key,quiet){const opt=destOpts(t).find(o=>o.key===key);if(!op
   const rel=()=>{if(t.dest&&t.dest.k==='spur')spurDel(t.dest.X,t)};let msg='';
   if(t.where==='loop'&&t.state==='park'){t.hold=false;t.state='dwell';t.dwellK='tupik';t.until=st.epoch+30}
   if(k==='sp'){const X=SPURS[+v];spurAdd(X,t);msg=`Состав №${t.id}: маршрут в отстой — ${X.lbl}, «${X.name}»`;
-    if(t.where==='loop'){rel();spurAdd(X,t);t.manual=true;if(X.Lr===t.L){t.dest={k:'spur',X};t.withdrawn=false;if(t.state==='dwell'&&Math.min(md(t.u-X.uP,t.L),md(X.uP-t.u,t.L))<1.5){t.dwellK='spurrev';t.until=st.epoch+40;t.load=0}}else{t.dest=null;t.withdrawn=true;t.after={k:'spur',X,L:X.Lr};msg+=' (через электродепо)'}drop()}
+    if(t.where==='loop'){rel();spurAdd(X,t);t.manual=true;if(X.Lr===t.L){t.dest={k:'spur',X};t.withdrawn=false;if(t.state==='dwell'&&Math.min(md(t.u-X.uP,t.L),md(X.uP-t.u,t.L))<1.5){t.dwellK='spurrev';t.until=st.epoch+40;t.load=0}else if(t.state==='dwell'&&X.via&&Math.min(md(t.u-X.via.uP,t.L),md(X.via.uP-t.u,t.L))<1.5){t.dest.via=X.via;t.dest.viaSet=true;t.dwellK='spurrev';t.until=st.epoch+40;t.load=0}}else{t.dest=null;t.withdrawn=true;t.after={k:'spur',X,L:X.Lr};msg+=' (через электродепо)'}drop()}
     else if(t.where==='spur')t.sp.req=X.Lr===t.L?{k:'spur',X}:{k:'other',L:X.Lr,after:{k:'spur',X,L:X.Lr}};
     else if(t.where==='depot')t.wantOut={k:'spur',X,L:X.Lr}}
   else if(k==='tp'){const T=TUP[+v];const after={k:'tupik',T,L:T.L};msg=`Состав №${t.id}: маршрут в ${T.lab.toLowerCase()} станции «${T.name}»`;
