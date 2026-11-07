@@ -448,6 +448,7 @@ const TUP=[];const TLAB=[];
   // главные пути: I — от начальной станции, II — обратно
   for(const L of LINES)for(const s of L.stops){if(s.si==null||s.k==='unload')continue;const pl=platLen(L,s.si);const q=upos(L,s.u-pl*0.5,0);const c=GEO.centers.find(c=>c.name===L.st[s.si]);if(!c)continue;
     const[sg]=segAt(L,s.u);const one=sg.kind==='A'||sg.kind.endsWith('1')&&sg.kind.startsWith('in');const o=nrm2(q[0]-c.x,q[1]-c.y);TLAB.push({x:q[0]+o[0]*7,y:q[1]+o[1]*7,t:one?'I путь':'II путь',k:'main',col:L.col})}
+  for(const q of [[-1330,-3240],[-1272,-3116]])TLAB.push({x:q[0],y:q[1],t:'Вытяжной путь (маневры)',k:'sp'});
   for(const T of TRK){if(!T.n)continue;const p=T.pts;const d=nrm2(p[0][0]-p[1][0],p[0][1]-p[1][1]);TLAB.push({x:p[0][0]+d[0]*7,y:p[0][1]+d[1]*7,t:String(T.n),k:'dep',n:T.n})}})();
 
 /* ================= НЕШТАТНЫЕ СИТУАЦИИ ================= */
@@ -812,17 +813,17 @@ $('#facts').innerHTML=INFO.factsHtml;
 /* ================= ЭЛЕКТРОДЕПО: ПЕРЕСТАНОВКИ ПО ПУТЯМ, МОЙКА, РЕМОНТ ================= */
 // перестановка по путям депо: с пути i до выхода из парка (ветвь к линии) и обратно на путь j — по путям OSM
 function depItems(kind,slot){const P=GEO.dpaths.P[kind][slot];return P.legs}
-function buildDep(i,j){const out=depItems('L1out',i)[0];const k=out.findIndex(x=>x[0]===107);const br=mkPoly(edgePts(107,1));const ex=polySub(br,0,70);
+function buildDepOld(i,j){const out=depItems('L1out',i)[0];const k=out.findIndex(x=>x[0]===107);const br=mkPoly(edgePts(107,1));const ex=polySub(br,0,70);
   const cat=items=>{const pts=[];for(const it of items){const p=it.pts?it.pts.map(q=>q.slice()):edgePts(it[0],it[1],it[2]);if(pts.length)p.shift();pts.push(...p)}return pts};
   const a=cat([...out.slice(0,k),{pts:ex}]);const inn=depItems('L2in',j);const last=inn[inn.length-1];const m=last.findIndex(x=>x[0]===107);
   const b=cat([{pts:ex.slice().reverse()},...last.slice(m+1)]);
   return{kind:'dep',slot:j,from:i,L:null,end:null,legs:[{poly:mkPoly(a),spans:[]},{poly:mkPoly(b),spans:[]}],li:0,s:0,wait:0}}
-function startDep(t,j){const P=buildDep(t.slot,j);st.depotTr=st.depotTr.filter(x=>x!==t);P.s=t.tl;P.wait=st.epoch+25;t.pth=P;t.where='path';t.state='path';t.v=0;t.slot=-1;st.pathTr.push(t);st.yardNext=st.epoch+30}
-function arriveTrack(t,j){t.where='depot';t.state='gone';t.slot=j;t.pth=null;t.v=0;const r=TRK[j].role;
+function startDep(t,j,prefer){const from=t.slot;const P=buildDep(t.slot,j,prefer);P.turn=!!prefer&&from===j;st.depotTr=st.depotTr.filter(x=>x!==t);P.s=t.tl;P.wait=st.epoch+25;t.pth=P;t.where='path';t.state='path';t.v=0;t.slot=-1;st.pathTr.push(t);st.yardNext=st.epoch+30}
+function arriveTrack(t,j){const turn=t.pth&&t.pth.turn;t.where='depot';t.state='gone';t.slot=j;t.pth=null;t.v=0;const r=TRK[j].role;if(turn){st.depotTr.push(t);toast(`Состав №${t.id} развёрнут через вытяжной путь и вернулся на ${TRK[j].n} путь`);RADIO.norm(t,`Диспетчер, поезд №${t.id}: разворот через вытяжной путь выполнил, стою на ${TRK[j].n} пути.`,true);return}
   if(r==='wash'){t.washUntil=st.epoch+rnd(1500,2100);t.washed=st.epoch}
   st.depotTr.push(t);toast(`Состав №${t.id} переставлен на ${TRK[j].n} путь депо (${ROLE[r]})`)}
 function yardMgr(){const now=st.epoch;if(st.pathTr.some(t=>t.pth.kind==='dep'||(t.pth.kind.endsWith('out')&&t.pth.li===0&&t.pth.s<600)))return;if(now<(st.yardNext||0))return;
-  const w=st.depotTr.find(t=>t.wantMove!=null&&!t.wantOut);if(w){const j=w.wantMove;w.wantMove=null;if(!slotBusy(j,w)){startDep(w,j);return}}
+  const w=st.depotTr.find(t=>t.wantMove!=null&&!t.wantOut);if(w){const j=w.wantMove;w.wantMove=null;const tu=w.wantTurn;w.wantTurn=false;if(!slotBusy(j,w)){startDep(w,j,tu?WYE:null);return}}
   for(const t of st.depotTr){const r=TRK[t.slot]&&TRK[t.slot].role;if(t.wantOut)continue;
     if(r==='repair'&&!(t.repairUntil>now)&&!t.keepRepair){const j=freeOf('stor',t);if(j>=0){startDep(t,j);return}}
     if(r==='wash'&&now>(t.washUntil||0)){const j=freeOf('stor',t);if(j>=0){startDep(t,j);return}}
@@ -881,7 +882,7 @@ function renderCmds(t){const box=$('#cmds');let h='';const prevSel=box.querySele
     else if(t.where==='depot'){const rep=t.repairUntil>st.epoch;
       if(t.wantOut||t.wantMove!=null)h=`<div class="row">${b('cancel','Отменить распоряжение')}</div>`;
       else h=`<div class="lab">Выход на линию (и дальше по графику)</div><div class="row">${LINES.map(x=>b('line','На '+x.name.replace('ая','ую'),{arg:x.id,pri:true,dis:night||rep})).join('')}</div>
-        <div class="lab">${rep?'После ремонта — обкатка без пассажиров':'Обкатка без пассажиров'}</div><div class="row">${LINES.map(x=>b('test','Обкатка: '+x.name,{arg:x.id})).join('')}</div>`+(rep?'':sel)}
+        <div class="lab">Маневры</div><div class="row">${b('turn','Разворот через вытяжной путь')}</div><div class="lab">${rep?'После ремонта — обкатка без пассажиров':'Обкатка без пассажиров'}</div><div class="row">${LINES.map(x=>b('test','Обкатка: '+x.name,{arg:x.id})).join('')}</div>`+(rep?'':sel)}
     if(night&&t.where!=='loop')h+='<div class="lab">Сейчас ночь: на линию состав выйдет к открытию (выпуск с 5:20). Обкатка и перестановки — сразу.</div>'}
   if(h!==cmdsHtml&&cmdsHtml!==''&&(box.matches(':hover')||box.contains(document.activeElement)))return;
   if(h!==cmdsHtml){cmdsHtml=h;box.innerHTML=h;box.hidden=!h;const s=box.querySelector('#dest');if(s&&prevSel&&[...s.options].some(o=>o.value===prevSel))s.value=prevSel}}
@@ -891,6 +892,7 @@ function extraCmd(t,cmd,arg){
   if(cmd==='skip'){const L=t.L;let best=null,bd=1e9;for(const s of L.stops){if(s.k!=='st')continue;const d=md(s.u-t.u,L);if(d>Math.max(5,t.v*t.v/(2*DEC)+5)&&d<bd){bd=d;best=s}}if(best){t.skipStop=best;toast(`Состав №${t.id} проследует «${L.st[best.si]}» без остановки (не более 35 км/ч)`);RADIO.order(t,`станцию ${L.st[best.si]} проследовать без остановки`)}cmdsHtml='';renderSel();return true}
   if(cmd==='unpark'){t.hold=false;t.state='dwell';t.dwellK='tupik';t.until=st.epoch+30;t.manual=true;toast(`Состав №${t.id} выходит из тупика на линию`);RADIO.order(t,'выходите из тупика на линию, по графику');cmdsHtml='';renderSel();return true}
   if(cmd==='depot'&&t.where==='loop'&&t.state==='park'){t.hold=false;t.state='dwell';t.dwellK='tupik';t.until=st.epoch+30;t.withdrawn=true;t.manual=true;toast(`Состав №${t.id} из тупика следует в электродепо`);RADIO.order(t,'из тупика следуйте в электродепо');cmdsHtml='';renderSel();return true}
+  if(cmd==='turn'&&t.where==='depot'){t.wantMove=t.slot;t.wantTurn=true;toast(`Состав №${t.id}: разворот через вытяжной путь — после освобождения горловины`);cmdsHtml='';renderSel();return true}
   if(cmd==='cancel'&&t.where==='depot'&&t.wantMove!=null){t.wantMove=null;cmdsHtml='';renderSel();return true}
   return false}
 
@@ -919,6 +921,51 @@ $('#swList').addEventListener('click',e=>{const b=e.target.closest('button[data-
   if(toggleSwitch(S))toast(`Стрелка №${S.lab} переведена в ${S.state==='plus'?'плюс':'минус'} (ручное управление)`);st.sel={kind:'sw',id:S.id};renderSwPanel();renderSel()});
 $('#swAuto').onclick=()=>{for(const S of SW)if(S.area===swArea)S.manual=false;toast(`${swArea}: все стрелки на автоуправлении`);swPanelHtml='';renderSwPanel()};
 function depMoveHtml(t){const P=t.pth;const a=TRK[P.from],b=TRK[P.slot];return`<div class="task">Перестановка по путям депо: с ${a?a.n:'?'} пути на ${b.n} путь (${ROLE[b.role]})</div><table><tbody><tr><td>Состояние</td><td>${P.wait>st.epoch?'Подготовка, смена кабины':t.v<0.3?'Ждёт перевода стрелок':'Маневровое движение'}</td></tr><tr><td>Скорость</td><td>${Math.round(t.v*3.6)} км/ч</td></tr></tbody></table>`}
+
+/* ================= ПУТИ ДЕПО КАК ГРАФ: МАНЕВРЫ ЧЕРЕЗ ВЫТЯЖНЫЕ ПУТИ ================= */
+// вытяжные (маневровые) пути — тупики, где состав меняет направление (разворот при перестановке)
+const NECKS=[[-1328,-3253],[-1333,-3257],[-1263,-3122],[-1288,-3106]];
+const YG=(function(){const box=(x,y)=>x<-1235&&x>-2000&&y<-2880&&y>-3300;
+  const raw=[];GEO.draw.forEach((d,i)=>{if(d.hide||d.t==='X'||d.t==='M'||d.t==='S')return;if(!d.p.some(([x,y])=>box(x,y)))return;
+    const p=d.p.filter((q,k)=>k===0||q[0]!==d.p[k-1][0]||q[1]!==d.p[k-1][1]);if(p.length>=2)raw.push(p)});
+  // узлы: точки, общие для нескольких ломаных (или концы)
+  const nodes=[];const nodeAt=(q,make)=>{for(const n of nodes)if(Math.hypot(n.x-q[0],n.y-q[1])<1.3)return n;if(!make)return null;const n={id:nodes.length,x:q[0],y:q[1],segs:[]};nodes.push(n);return n};
+  const cnt=new Map();const k=q=>Math.round(q[0])+','+Math.round(q[1]);for(const p of raw)for(const q of p)cnt.set(k(q),(cnt.get(k(q))||0)+1);
+  const segs=[];
+  for(const p of raw){let cur=[p[0]];for(let j=1;j<p.length;j++){cur.push(p[j]);const last=j===p.length-1;if(last||cnt.get(k(p[j]))>1){const a=nodeAt(cur[0],true),b=nodeAt(cur[cur.length-1],true);
+        if(a!==b||cur.length>2){const s={id:segs.length,a,b,pts:cur,len:mkPoly(cur).len};segs.push(s);a.segs.push(s);b.segs.push(s)}cur=[p[j]]}}}
+  const dirFrom=(pts)=>{let acc=0,q=pts[0];for(let j=1;j<pts.length;j++){const d=Math.hypot(pts[j][0]-pts[j-1][0],pts[j][1]-pts[j-1][1]);acc+=d;q=pts[j];if(acc>=10)break}return nrm2(q[0]-pts[0][0],q[1]-pts[0][1])};
+  for(const s of segs){s.outA=dirFrom(s.pts);s.outB=dirFrom(s.pts.slice().reverse())}
+  for(const n of nodes){n.dead=n.segs.length===1;n.inBox=box(n.x,n.y)}
+  // длина тупика от упора до ближайшей стрелки
+  for(const n of nodes)if(n.dead){let len=0,cur=n,s=n.segs[0],g=0;while(s&&g++<50){len+=s.len;const o=s.a===cur?s.b:s.a;if(o.segs.length!==2)break;cur=o;s=o.segs.find(x=>x!==s)}n.stub=len}
+  return{nodes,segs,nodeAt}})();
+function ygRoute(fromPt,toPt,tl,prefer){const{nodes,segs,nodeAt}=YG;const A=nodeAt(fromPt,false),B=nodeAt(toPt,false);if(!A||!B||!A.dead||!B.dead)return null;
+  const park=new Set(TRK.filter(T=>T.role!=='none').map(T=>nodeAt(T.pts[0],false)).filter(Boolean));
+  const neckCost=n=>(prefer||NECKS).some(q=>Math.hypot(q[0]-n.x,q[1]-n.y)<2)?0:(prefer?6000:2500);
+  // состояние: сегмент + направление (1: a→b, -1: b→a); стоимость — длина, разворот +300
+  const key=(s,d)=>s.id*2+(d>0?0:1);const dist=new Map(),prev=new Map();const pq=[];const push=(c,s,d,pk,rev)=>{const kk=key(s,d);if(dist.has(kk)&&dist.get(kk)<=c)return;dist.set(kk,c);prev.set(kk,{pk,rev});pq.push([c,s,d])};
+  const s0=A.segs[0];push(s0.len,s0,s0.a===A?1:-1,null,false);let goal=null;
+  while(pq.length){pq.sort((x,y)=>x[0]-y[0]);const[c,s,d]=pq.shift();const kk=key(s,d);if(dist.get(kk)<c)continue;const end=d>0?s.b:s.a;
+    if(end===B&&!(B===A&&!prev.get(kk).rev&&!revBefore(kk))){goal=kk;break}
+    const hin=d>0?[-s.outB[0],-s.outB[1]]:[-s.outA[0],-s.outA[1]];
+    for(const s2 of end.segs){if(s2===s)continue;const d2=s2.a===end?1:-1;const hout=d2>0?s2.outA:s2.outB;if(dot2(hin,hout)>0.8)push(c+s2.len,s2,d2,kk,false)}
+    const isPref=prefer&&prefer.some(q=>Math.hypot(q[0]-end.x,q[1]-end.y)<2);
+    if(prefer){if(isPref)push(c+300+s.len,s,-d,kk,true)}
+    else if(end.dead&&end.inBox&&end!==B&&!park.has(end)&&end.stub>=40)push(c+(end.stub>=tl+8?300+neckCost(end):3500)+s.len,s,-d,kk,true);
+    // разворот на сквозном пути: весь состав помещается на участке за стрелкой
+    else if(!prefer&&!end.dead&&end.inBox&&!prev.get(kk).rev&&backLen(s,d)>=tl+6)push(c+4000+s.len,s,-d,kk,true)}
+  function backLen(s,d){let len=s.len,node=d>0?s.a:s.b,cur=s,g=0;while(node.segs.length===2&&g++<40){const o=node.segs.find(x=>x!==cur);len+=o.len;node=o.a===node?o.b:o.a;cur=o}return len}
+  function revBefore(kk){let p=prev.get(kk);while(p&&p.pk!=null){if(p.rev)return true;p=prev.get(p.pk)}return false}
+  if(goal==null)return null;
+  // восстановление: участки между разворотами — отдельные «плечи» маневра
+  const chain=[];let kk=goal;while(kk!=null){const p=prev.get(kk);chain.unshift({kk,rev:p.rev});kk=p.pk}
+  const legs=[];let cur=[];for(const{kk,rev}of chain){const s=segs[kk>>1],d=(kk&1)?-1:1;if(rev){legs.push(cur);cur=[]}const pts=d>0?s.pts.slice():s.pts.slice().reverse();if(cur.length)pts.shift();cur.push(...pts)}
+  legs.push(cur);return legs.filter(l=>l.length>1)}
+function buildDep(i,j,prefer){const tl=97;const legs=ygRoute(TRK[i].pts[0],TRK[j].pts[0],tl,prefer);
+  if(legs&&legs.length){return{kind:'dep',slot:j,from:i,L:null,end:null,legs:legs.map(p=>({poly:mkPoly(p),spans:[]})),li:0,s:0,wait:0}}
+  return buildDepOld(i,j)}
+const WYE=[[-1328,-3253],[-1333,-3257]];
 
 
 /* ================= СТАНЦИИ: ПЛАТФОРМЫ, КОЛОННЫ, СКАМЬИ, ВЕСТИБЮЛИ ================= */
@@ -999,7 +1046,7 @@ const PAX={key:new Map(),last:0,
 const TRKP=TRK.map(T=>mkPoly(T.pts));
 function drawYardUnder(){const z=cam.z;if(z<0.3)return;
   for(const T of TRK){if(T.role!=='wash'&&T.role!=='repair')continue;const P=TRKP[T.i];const pts=polySub(P,0,Math.min(P.len,104));const c=T.role==='wash'?'rgba(31,126,255,.62)':'rgba(255,138,0,.7)';path(pts,c,Math.max(5,5*z));
-    if(z>0.9){const m=polyAt(P,Math.min(P.len,104)/2);txt(T.role==='wash'?'МОЙКА':'РЕМОНТ',SX(m[0]),SY(m[1])+4,T.role==='wash'?'#1f7ee6':'#d96a00',Math.min(12,8+z),{bold:true,align:'center',halo:true})}}}
+    if(z>0.9&&!TRK.some(o=>o!==T&&o.role===T.role&&o.i<T.i&&Math.hypot(o.pts[0][0]-T.pts[0][0],o.pts[0][1]-T.pts[0][1])<20)){const m=polyAt(P,Math.min(P.len,104)/2);txt(T.role==='wash'?'МОЙКА':'РЕМОНТ',SX(m[0]),SY(m[1])+4,T.role==='wash'?'#1f7ee6':'#d96a00',Math.min(12,8+z),{bold:true,align:'center',halo:true})}}}
 function drawYardSignals(){if(cam.z<2.5)return;const r=Math.max(2,Math.min(4,cam.z));for(const T of TRK){if(T.role==='none')continue;const P=TRKP[T.i];const q=polyAt(P,P.len-2);const x=SX(q[0]),y=SY(q[1])-Math.max(4,2.5*cam.z);const i=T.i;
     const go=st.pathTr.some(t=>{const P=t.pth;return P.li===0&&P.s<P.legs[0].poly.len*0.5&&((P.kind.endsWith('out')&&P.slot===i)||(P.kind==='dep'&&P.from===i))});
     ctx.fillStyle='#111';ctx.beginPath();ctx.arc(x,y,r+1,0,7);ctx.fill();ctx.fillStyle=go?'#f4f4f4':'#2f6bff';ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill()}}
@@ -1200,7 +1247,7 @@ function driverDo(t,cmd,pend){const id=t.id;const L=t.L;let r='',act=null;const 
   case'limit':r='Понял, следую не более 20 км/ч.'+P;act=()=>{t.vcap=20/3.6};break;
   case'unlimit':r='Понял, ограничение снято.'+P;act=()=>{t.vcap=null};break;
   case'skip':{const s=t.where==='loop'?nextSt(t):null;if(!s||s.k!=='st'){r='Не понял, какую станцию проследовать? Повторите.'+P;break}r=`Понял, станцию ${L.st[s.si]} проследую без остановки не более 35 км/ч, сделаю объявление.`+P;act=()=>{t.skipStop=s};break}
-  case'reverse':{if(t.where!=='loop'){r='Диспетчер, развернуться могу только на линии, у платформы.'+P;break}if(broken){r='Диспетчер, состав неисправен, следую до станции и в депо.'+P;break}
+  case'reverse':{if(t.where==='depot'){if(t.repairUntil>st.epoch){r='Диспетчер, состав в ремонте, маневры невозможны.'+P;break}r=`Понял, разворот через вытяжной путь, вернусь на ${TRK[t.slot].n} путь.`+P;act=()=>doCmd(t,'turn','');break}if(t.where!=='loop'){r='Диспетчер, развернуться могу только на линии, у платформы, или в депо.'+P;break}if(broken){r='Диспетчер, состав неисправен, следую до станции и в депо.'+P;break}
     if(t.state==='dwell'&&t.dwellK==='st'&&t.stopSi!=null){const si=t.stopSi;r=`Понял, на станции ${L.st[si]} высаживаю пассажиров, меняю кабину и следую в обратном направлении.`+P;act=()=>{t.revSi=si;t.until=Math.min(t.until,st.epoch+20);t.load=0;t.manual=true}}
     else{const s=nextSt(t);if(!s){r='Не вижу, где развернуться, повторите.'+P;break}if(s.k==='unload'){r=`Понял, на конечной ${L.st[s.si]} оборачиваюсь как обычно.`+P;break}r=`Понял, на станции ${L.st[s.si]} высажу пассажиров, сменю кабину и пойду в обратном направлении.`+P;act=()=>{t.revSi=s.si;t.manual=true}}break}
   case'line':if(t.where==='spur'){if(t.sp.leg!=='stand'){r='Понял, сначала закончу маневр.'+P;break}r=`Понял, выезжаю из отстоя на ${L.name.replace('ая','ую')} линию.`+P;act=()=>doCmd(t,'line','')}
@@ -1312,7 +1359,7 @@ function frame(now){const rdt=Math.min(.25,(now-last)/1000);last=now;
   if(!st.paused){if(st.live){const tgt=Date.now()/1000;let left=tgt-st.epoch;if(left>120)init(tgt);else while(left>0){const h=Math.min(.25,left);step(h);left-=h}}else{let left=rdt*st.speed;while(left>0){const h=Math.min(.25,left);step(h);left-=h}}}
   PAX.tick();draw();micLevel();if(now-lastUI>300){lastUI=now;renderTop();renderLines();renderSel();renderFeed();renderRadio();renderSwPanel();renderShift()}requestAnimationFrame(frame)}
 init(Date.now()/1000);shiftReset();rSp();renderTop();renderLines();renderFeed();renderRadio();renderSwPanel();requestAnimationFrame(frame);
-window.__st=st;window.__sim={SW,TRK,TUP,RADIO,PAX,STN,sendDest,destOpts,toggleSwitch,incPos,draw,renderAll:()=>{renderTop();renderLines();renderSel();renderFeed()},resize,setView:v=>{view=v;rView()},step,makeEvent,init,LINES,cam,fit,SPURS,doCmd,findTr,allTrains,buildPath,scr:t=>{const q=along(t)(t.tl/2,t.tl/2+0.5)[0];return[SX(q[0]),SY(q[1])]},headW:t=>{const p=along(t)(0,0.5);return p[p.length-1]}};
+window.__st=st;window.__sim={SW,TRK,TUP,RADIO,PAX,STN,sendDest,destOpts,toggleSwitch,buildDep,buildDepOld,YG,startDep,incPos,draw,renderAll:()=>{renderTop();renderLines();renderSel();renderFeed()},resize,setView:v=>{view=v;rView()},step,makeEvent,init,LINES,cam,fit,SPURS,doCmd,findTr,allTrains,buildPath,scr:t=>{const q=along(t)(t.tl/2,t.tl/2+0.5)[0];return[SX(q[0]),SY(q[1])]},headW:t=>{const p=along(t)(0,0.5);return p[p.length-1]}};
 })();
 </script>
 </body>
